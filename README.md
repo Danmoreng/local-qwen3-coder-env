@@ -1,12 +1,15 @@
-# Local Qwen3‑Coder Environment
+# Local LLM Environment
 
-This project provides a pair of PowerShell scripts that let you download, build and run the [**Qwen3‑Coder‑30B‑A3B‑Instruct‑1M**](https://huggingface.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-1M-GGUF) model locally on Windows via **\[`ik_llama.cpp`]** – a performance‑oriented fork of `llama.cpp`.
+This project provides PowerShell scripts to download, build, and run large language models locally on Windows using either the standard **`llama.cpp`** or the performance-oriented **`ik_llama.cpp`** fork.
 
-The workflow is self‑contained:
+You can choose the engine that best suits your needs:
+*   **`llama.cpp`**: The official, stable, and widely used version.
+*   **`ik_llama.cpp`**: A fork with advanced features for fine-tuning performance, especially for machines with limited VRAM.
 
+The workflow is self-contained:
 ```
 repo/                     # your checkout
-├─ vendor/                # `ik_llama.cpp` source cloned & built here
+├─ vendor/                # llama.cpp and/or ik_llama.cpp source cloned & built here
 └─ models/                # downloaded GGUF model(s)
 ```
 
@@ -14,26 +17,85 @@ repo/                     # your checkout
 
 ## Prerequisites
 
-* Windows 10/11 x64
-* PowerShell 5 (or 7)
-* NVIDIA GPU with CUDA 12.4+ (compute ≥ 7.0 highly recommended)
-* \~40 GB free disk space (source tree and model)
+*   Windows 10/11 x64
+*   PowerShell 5 (or 7)
+*   NVIDIA GPU with CUDA 12.4+ (compute ≥ 7.0 highly recommended)
+*   ~40 GB free disk space (source tree and model)
 
 ---
 
-## Scripts
+## Setup and Usage
 
-### `install_ik_llamacpp.ps1`
+The process is split into two steps:
+1.  **Installation**: Run the appropriate `install_*.ps1` script once.
+2.  **Execution**: Run the corresponding `run_*_server.ps1` script to start the model server.
 
-Automates installation of build tools and compiles **`llama‑server.exe`**.
+### 1. Choose Your Engine
 
-* Installs **Git**, **CMake**, **Ninja**, **Visual Studio 2022 Build Tools** and the latest **CUDA 12.4+** via `winget`.
-* Clones [`ik_llama.cpp`](https://github.com/ikawrakow/ik_llama.cpp) into **`vendor/`**.
-* Builds the server executable with CUDA kernels for your GPU.
+First, decide whether you want to use the standard `llama.cpp` or the `ik_llama.cpp` fork.
 
-> **Tip ― choose the right CUDA arch**
-> Pass the `‑CudaArch` switch to target your card exactly.
-> E.g. Ampere (RTX 30‑series) ⇒ `‑CudaArch 86`.
+#### Option A: Standard `llama.cpp` (Recommended for most users)
+
+This is the official and most stable version.
+
+**Installation:**
+Run the `install_llama_cpp.ps1` script from an **elevated** PowerShell prompt. This will download and build the `llama.cpp` engine.
+
+```powershell
+# Allow script execution for this session
+Set-ExecutionPolicy Bypass -Scope Process
+
+# Run the installer (adjust CudaArch for your GPU)
+./install_llama_cpp.ps1 -CudaArch 86
+```
+
+**Execution:**
+Once the installation is complete, start the server.
+
+```powershell
+./run_llama_cpp_server.ps1
+```
+
+#### Option B: Performance `ik_llama.cpp` (Advanced)
+
+This version offers special flags for optimizing performance, like quantizing the KV-cache or splitting model layers between GPU and CPU.
+
+**Installation:**
+Run the `install_ik_llama.ps1` script from an **elevated** PowerShell prompt.
+
+```powershell
+# Allow script execution for this session
+Set-ExecutionPolicy Bypass -Scope Process
+
+# Run the installer (adjust CudaArch for your GPU)
+./install_ik_llama.ps1 -CudaArch 86
+```
+
+**Execution:**
+Once the installation is complete, start the server.
+
+```powershell
+./run_ik_llama_server.ps1
+```
+
+---
+
+## Server and Model
+
+The `run` scripts will download a ~17 GB GGUF model into the `models/` directory and launch the `llama-server.exe` with a tuned set of runtime flags.
+
+*   `run_llama_cpp_server.ps1` uses the **`Qwen3-Coder-30B-A3B-Instruct-1M-IQ4_NL.gguf`** model.
+*   `run_ik_llama_server.ps1` uses the **`Qwen3-Coder-30B-A3B-Instruct-IQ4_KSS.gguf`** model, which is a special quantization format supported by this fork.
+
+The server starts on [http://localhost:8080](http://localhost:8080) and exposes both a browser chat UI and an OpenAI-compatible REST API.
+
+### Performance Note
+
+With the provided settings, both server implementations should achieve comparable performance. On a system with a **Ryzen 5 7600 CPU, 32GB DDR5-5600 RAM, and an NVIDIA RTX 4070 Ti (12GB)**, both servers run at approximately **35 tokens/second**.
+
+### CUDA Architecture (`-CudaArch`)
+
+To get the best performance, match the `-CudaArch` parameter to your GPU generation during installation.
 
 | Architecture  | Cards (examples)   | Flag         |
 | ------------- | ------------------ | ------------ |
@@ -43,79 +105,32 @@ Automates installation of build tools and compiles **`llama‑server.exe`**.
 | **Ada**       | RTX 40×0           | 89           |
 | **Blackwell** | RTX 50×0           | 90           |
 
-Run from an **elevated** PowerShell prompt:
-
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process
-./install_ik_llamacpp.ps1 -CudaArch 86   # adjust as needed
-```
-
-### `run-qwen3-server.ps1`
-
-* Downloads **`Qwen3‑Coder‑30B‑A3B‑Instruct‑1M‑IQ4_XS.gguf`** into `models/` (resumable BITS transfer).
-* Launches **`llama‑server.exe`** with a tuned set of runtime flags.
-
-```powershell
-./run-qwen3-server.ps1
-```
-
-The server starts on [http://localhost:8080](http://localhost:8080) and exposes both a browser chat UI and an OpenAI‑compatible REST API.
-
 ---
 
-## High‑Performance Inference with `ik_llama.cpp`
+## Parameter Explanations
 
-`ik_llama.cpp` adds several power‑user flags that do **not** exist in vanilla `llama.cpp`.  The script uses them out‑of‑the‑box – feel free to tweak.
+The `run` scripts use a set of optimized flags to launch the server. Most of these are now available in both `llama.cpp` and `ik_llama.cpp`.
 
-| Flag                          | Purpose                                                                                                                                                                | Typical value(s)                                     |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `‑ngl 99`                     | Offload **all** eligible layers to the first CUDA device ("99" is effectively “max”).                                                                                  | 99                                                   |
-| `‑ctk <type>` / `‑ctv <type>` | **Quantise the runtime KV‑cache** (K or V half). Shrinks memory footprint & bandwidth.                                                                                 | `q8_0` (8‑bit), `f16` (default), `bf16`, …           |
-| `‑ot '<regex>=<backend>'`     | **Override tensor placement** via a *regex* → backend map. Applied **after** `‑ngl`. Lets you keep huge MoE expert matrices on CPU while hot path tensors stay on GPU. | Examples:<br>`exps=CPU`<br>`blk\.[0-7]\.ffn.*=CUDA0` |
-| `‑fa` / `‑‑flash‑attn`        | Enable Flash‑Attention kernels.                                                                                                                                        |                                                      |
-| `‑fmoe` / `‑‑fused‑moe`       | Use fused MoE kernels for Qwen’s expert layers.                                                                                                                        |                                                      |
-| `‑ser 1,0`                    | *Smart‑Expert‑Reduction*: compute only the most probable experts.                                                                                                      |                                                      |
+| Flag | Purpose | Value(s) in Script |
+| --- | --- | --- |
+| `-ngl 999` | Offloads all possible layers to the GPU. | `999` (all) |
+| `-c 65536` | Sets the context size for the model. | `65536` |
+| `-fa` | Enables Flash Attention kernels for faster processing. | Enabled |
+| `-ctk <type>` | Quantizes the 'key' part of the KV cache to save memory. | `q8_0` (8-bit) |
+| `-ctv <type>` | Quantizes the 'value' part of the KV cache. | `q4_0` (4-bit) |
+| `-ot <regex>=<backend>` | Overrides tensor placement. Used here to keep some MoE experts on the CPU to save VRAM. | See script |
+| `--temp`, `--top-p`, etc. | Standard sampling parameters to control the model's output. | See script |
 
-### Example of the shipped launch line
+### Key `ik_llama.cpp` Differences
 
-```powershell
-llama-server.exe `
-  --model "models\Qwen3-Coder-30B-A3B-Instruct-1M-IQ4_XS.gguf" `
-  -fa -fmoe -ser 1,0 `
-  -c 65536 `
-  -ctk q8_0 -ctv q8_0 `
-  -ngl 99 `
-  -ot "blk\.(0|1|..|19)\.ffn.*=CUDA0" `
-  -ot exps=CPU `
-  --threads 8 `
-  --temp 0.6 --top-p 0.95 --top-k 20
-```
+While `llama.cpp` has integrated many high-performance features, `ik_llama.cpp` currently provides a few unique advantages:
 
-* **`‑ctk/-ctv`** shrink the 64k‑context KV‑cache to one quarter of the f32 size while speeding up attention.
-* **`‑ot`** pushes only the first 20 blocks’ MoE experts to GPU0; the remainder stay on RAM – a good balance for 24 GB cards.
+*   **`-fmoe` / `--fused-moe`**: Enables fused Mixture-of-Experts kernels, which can improve performance for models like Qwen that use this architecture.
+*   **`-ser <n>,<p>` / `--smart-expert-reduction`**: A powerful feature that computes only the most probable `n` experts with a cumulative probability of `p`. This can significantly speed up MoE models by reducing computation, especially on GPUs with lower memory bandwidth.
+*   **Specialized Quants**: `ik_llama.cpp` often supports new quantization methods first. The `run_ik_llama_server.ps1` script uses the **`IQ4_KSS`** quant, which can offer a different balance of performance and quality compared to the `IQ4_NL` quant used by the standard `llama.cpp` script.
 
-Feel free to experiment: e.g. keep **V** in `f16` for slightly higher fidelity, or split blocks across multiple GPUs (`‑ot 'blk\.(0|1|2|3)=CUDA0' -ot 'blk\.(4|5|6|7)=CUDA1'`).
-
----
-
-## Getting Started
-
-
-1.  Open an **elevated** PowerShell window.
-2.  Navigate to the directory containing the scripts.
-3.  Run the installation script:
-    ```powershell
-    .\install_ik_llamacpp.ps1
-    ```
-4.  Once the installation is complete, run the server:
-    ```powershell
-    .\run-qwen3-server.ps1
-    ```
-5.  You can now interact with the model. The `llama-server` provides:
-    - A web interface for interactive chat directly in your browser at `http://localhost:8080`.
-    - An OpenAI-compatible API for programmatic access. You can send requests to endpoints like `http://localhost:8080/v1/chat/completions`.
+The `run_ik_llama_server.ps1` script enables `-fmoe` and `-ser` for maximum performance.
 
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-

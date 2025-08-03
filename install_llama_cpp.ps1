@@ -1,7 +1,7 @@
 <#
-    install_ik_llamacpp.ps1
-    -----------------------
-    Installs all prerequisites and builds ik_llama.cpp on Windows.
+    install_llama_cpp.ps1
+    ---------------------
+    Installs all prerequisites and builds ggerganov/llama.cpp on Windows.
 
     • Works on Windows PowerShell 5 and PowerShell 7
     • Uses the Ninja generator (fast, no VS-integration dependency)
@@ -17,7 +17,6 @@ param(
 )
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$RepoDir    = Join-Path $ScriptRoot 'vendor\ik_llama.cpp'
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -163,37 +162,42 @@ foreach ($r in $reqs) {
 
 Import-VSEnv   # make cl.exe etc. available in this session
 
-# Clone or update repo
-if (-not (Test-Path $RepoDir)) {
-    Write-Host "-> cloning ik_llama.cpp into $RepoDir"
-    git clone https://github.com/ikawrakow/ik_llama.cpp $RepoDir
-} else {
-    Write-Host "-> updating existing ik_llama.cpp in $RepoDir"
-    git -C $RepoDir pull --ff-only
-}
-
 if ($SkipBuild) { Write-Host 'SkipBuild set – done.'; return }
 
-# Configure & build
+# ---------------------------------------------------------------------------
+# Clone & build ggerganov/llama.cpp
+# ---------------------------------------------------------------------------
+
+$LlamaRepo   = Join-Path $ScriptRoot 'vendor\llama.cpp'
+$LlamaBuild  = Join-Path $LlamaRepo  'build'
+
+if (-not (Test-Path $LlamaRepo)) {
+    Write-Host "-> cloning upstream llama.cpp into $LlamaRepo"
+    git clone https://github.com/ggerganov/llama.cpp $LlamaRepo
+} else {
+    Write-Host "-> updating existing llama.cpp in $LlamaRepo"
+    git -C $LlamaRepo pull --ff-only
+}
+
+# --- configure & build ------------------------------------------------------
+
 $cudaRootArg = Use-LatestCuda
-$build = Join-Path $RepoDir 'build'
-New-Item $build -ItemType Directory -Force | Out-Null
 
-$cmakeArgs = @(
-    '-G','Ninja',
-    '-DGGML_CUDA=ON',
-    '-DGGML_CUBLAS=ON',
-    '-DCMAKE_BUILD_TYPE=Release',
-    "-DCMAKE_CUDA_ARCHITECTURES=$CudaArch",
+New-Item $LlamaBuild -ItemType Directory -Force | Out-Null
+Push-Location $LlamaBuild
+
+Write-Host '-> generating upstream llama.cpp solution ...'
+cmake .. -G Ninja `
+    -DGGML_CUDA=ON -DGGML_CUBLAS=ON `
+    -DCMAKE_BUILD_TYPE=Release `
+    -DLLAMA_CURL=OFF `
+    -DGGML_CUDA_FA_ALL_QUANTS=ON `
+    "-DCMAKE_CUDA_ARCHITECTURES=$CudaArch" `
     $cudaRootArg
-)
 
-Push-Location $build
-Write-Host '-> generating solution ...'
-cmake .. @cmakeArgs
-Write-Host '-> building (Release) ...'
-cmake --build . --config Release --target llama-server --parallel
+Write-Host '-> building upstream llama.cpp tools (Release) ...'
+cmake --build . --config Release --target llama-server llama-batched-bench llama-cli llama-bench --parallel
 Pop-Location
 
 Write-Host ''
-Write-Host ("Done!  Binaries are in: ""{0}""." -f (Join-Path $build 'bin'))
+Write-Host ("Done!  llama.cpp binaries are in: ""{0}""." -f (Join-Path $LlamaBuild 'bin'))
