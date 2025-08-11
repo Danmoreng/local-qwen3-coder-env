@@ -47,7 +47,7 @@ function Test-CUDA {
     $root = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA'
     if (-not (Test-Path $root)) { return $false }
     foreach ($d in Get-ChildItem $root -Directory) {
-        if ($d.Name -match '^v12\.(\d+)$' -and [int]$Matches[1] -ge 4) { return $true }
+        if ($d.Name -match '^v13\.(\d+)$' -and [int]$Matches[1] -ge 0) { return $true }
     }
     return $false
 }
@@ -107,18 +107,18 @@ function Import-VSEnv {
     }
 }
 
-# Select newest CUDA 12.x >=12.4, export env, return CMake arg
+# Select newest CUDA 13.x >=12.4, export env, return CMake arg
 function Use-LatestCuda {
     $root = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA'
     $latest = Get-ChildItem $root -Directory |
-              Where-Object Name -Match '^v12\.(\d+)$' |
-              Sort-Object { [int]($_.Name -replace '^v12\.') } -Descending |
+              Where-Object Name -Match '^v13\.(\d+)$' |
+              Sort-Object { [int]($_.Name -replace '^v13\.') } -Descending |
               Select-Object -First 1
-    if (-not $latest) { throw 'No CUDA 12.x installation found.' }
+    if (-not $latest) { throw 'No CUDA 13.x installation found.' }
 
     $env:CUDA_PATH = $latest.FullName
     $minor = ($latest.Name -split '\.')[1]
-    Set-Item -Path ("Env:CUDA_PATH_V12_$minor") -Value $latest.FullName
+    Set-Item -Path ("Env:CUDA_PATH_V13_$minor") -Value $latest.FullName
     $env:Path = "$($latest.FullName)\bin;$env:Path"
 
     Write-Host "  Using CUDA toolkit at $($env:CUDA_PATH)"
