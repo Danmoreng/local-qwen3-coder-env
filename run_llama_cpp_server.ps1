@@ -45,6 +45,7 @@ Download-IfNeeded -Url $ModelUrl      -Destination $ModelFile
 $Env:LLAMA_SET_ROWS = '1'
 
 $Args = @(
+    '--jinja',
     '--model',             $ModelFile,
     '--threads',           $Threads,
     '-fa',
