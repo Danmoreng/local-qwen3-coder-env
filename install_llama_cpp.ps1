@@ -179,6 +179,8 @@ if (-not (Test-Path $LlamaRepo)) {
     git -C $LlamaRepo pull --ff-only
 }
 
+git -C $LlamaRepo submodule update --init --recursive
+
 # --- configure & build ------------------------------------------------------
 
 $cudaRootArg = Use-LatestCuda
