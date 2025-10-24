@@ -3,7 +3,7 @@
     --------------------
     Installs all prerequisites and builds ggerganov/llama.cpp on Windows.
 
-    • Works on Windows PowerShell 5 and PowerShell 7
+    • Works on Windows PowerShell 7
     • Uses the Ninja generator (fast, no VS-integration dependency)
     • Re-usable: just run the script; it installs only what is missing
     • Pass -CudaArch <SM> to target a different GPU
