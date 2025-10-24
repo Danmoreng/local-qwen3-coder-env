@@ -18,7 +18,7 @@ repo/                     # your checkout
 ## Prerequisites
 
 *   Windows 10/11 x64
-*   PowerShell 5 (or 7)
+*   PowerShell 7
 *   NVIDIA GPU with CUDA 12.4+ (compute ≥ 7.0 highly recommended)
 *   ~40 GB free disk space (source tree and model)
 
@@ -39,14 +39,14 @@ First, decide whether you want to use the standard `llama.cpp` or the `ik_llama.
 This is the official and most stable version.
 
 **Installation:**
-Run the `install_llama_cpp.ps1` script from an **elevated** PowerShell prompt. This will download and build the `llama.cpp` engine.
+Run the `install_llama_cpp.ps1` script from an **elevated** PowerShell 7 prompt. This will download and build the `llama.cpp` engine.
 
 ```powershell
 # Allow script execution for this session
 Set-ExecutionPolicy Bypass -Scope Process
 
-# Run the installer (adjust CudaArch for your GPU)
-./install_llama_cpp.ps1 -CudaArch 86
+# Run the installer
+./install_llama_cpp.ps1
 ```
 
 **Execution:**
