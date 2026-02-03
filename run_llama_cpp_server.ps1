@@ -5,8 +5,6 @@
     • Launches llama-server.exe from llama.cpp with Qwen-3 Coder + speculative decoding
 #>
 
-param([int]$Threads = 8)
-
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $ServerExe  = Join-Path $ScriptRoot 'vendor\llama.cpp\build\bin\llama-server.exe'
 
@@ -16,11 +14,8 @@ if (-not (Test-Path $ServerExe)) {
 
 $ModelDir       = Join-Path $ScriptRoot 'models'
 # Main 30B model
-$ModelUrl       = 'https://huggingface.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-1M-GGUF/resolve/main/Qwen3-Coder-30B-A3B-Instruct-1M-IQ4_NL.gguf'
+$ModelUrl       = 'https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-UD-Q4_K_XL.gguf'
 $ModelFile      = Join-Path $ModelDir (Split-Path $ModelUrl -Leaf)
-# Draft 0.6B model
-# $DraftModelUrl  = 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf'
-# $DraftModelFile = Join-Path $ModelDir (Split-Path $DraftModelUrl -Leaf)
 
 function Download-IfNeeded {
     param([string]$Url, [Alias('Dest')][string]$Destination)
@@ -39,29 +34,59 @@ function Download-IfNeeded {
 }
 
 Download-IfNeeded -Url $ModelUrl      -Destination $ModelFile
-# Download-IfNeeded -Url $DraftModelUrl -Destination $DraftModelFile
 
 # Row-major speedup
 $Env:LLAMA_SET_ROWS = '1'
 
+# Recommended parameters for Qwen3-Coder-Next
 $Args = @(
-    '--jinja',
     '--model',             $ModelFile,
-    '--threads',           $Threads,
-    '-fa',
-    '-c',                  '65536',
-    '-b', '4096',
-    '-ub',                '1024', 
+    '--alias',             'unsloth/Qwen3-Coder-Next',
+    '--fit',               'on',
+    '--jinja',
+    '-c',                  '32768',
+    '-b',                  '4096',
+    '-ub',                 '1024',
     '-ctk',                'q8_0',
     '-ctv',                'q4_0',
-       '-ot',      'blk.(0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19).ffn.*exps=CUDA0',
-    '-ot',      'exps=CPU',
-    '-ngl',                '999',
-    '--temp',              '0.6',
+    '--temp',              '1.0',
     '--top-p',             '0.95',
-    '--top-k',             '20',
-    '--presence-penalty',  '1.5'
+    '--top-k',             '40',
+    '--min-p',             '0.01',
+    '--seed',              '3407',
+    '--port',              '8001' # Port 8001 as per docs
 )
 
-Write-Host "→ Starting llama-server on http://localhost:8080 ..."
-Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow
+Write-Host "→ Starting llama-server on http://localhost:8001 ..."
+$ServerProcess = Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -PassThru
+
+# Wait for server to start (simple sleep, ideally would check port)
+Write-Host "  Waiting 10 seconds for server to initialize..."
+Start-Sleep -Seconds 10
+
+# Configure environment for qwen-code (OpenAI compatible)
+$env:OPENAI_API_KEY = "sk-no-key-required"
+$env:OPENAI_BASE_URL = "http://localhost:8001/v1"
+$env:OPENAI_MODEL = "unsloth/Qwen3-Coder-Next"
+
+Write-Host "→ Starting qwen-code CLI in a new window..."
+Write-Host "  (The server logs will stay in this window)"
+
+# Launch qwen-code in a new window using PowerShell 7.
+# We use EncodedCommand to safely pass environment variables and commands without quoting issues.
+$commands = @'
+$env:OPENAI_API_KEY = "sk-no-key-required"
+$env:OPENAI_BASE_URL = "http://localhost:8001/v1"
+$env:OPENAI_MODEL = "unsloth/Qwen3-Coder-Next"
+qwen
+'@
+$bytes = [System.Text.Encoding]::Unicode.GetBytes($commands)
+$encoded = [Convert]::ToBase64String($bytes)
+Start-Process pwsh -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded
+
+Write-Host "→ Press any key to stop the llama-server and exit..."
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
+# Cleanup server
+Write-Host "→ Stopping llama-server..."
+Stop-Process -Id $ServerProcess.Id -Force
