@@ -90,7 +90,7 @@ function Test-CUDA {
 
 function Test-CUDAExact {
     param([Parameter(Mandatory=$true)][string]$MajorMinor) # e.g. '12.4'
-    $target = [version]("$MajorMinor")
+    $target = [version]"$MajorMinor"
     $hit = Get-CudaInstalls | Where-Object {
         $_.Version.Major -eq $target.Major -and $_.Version.Minor -eq $target.Minor
     } | Select-Object -First 1
@@ -472,6 +472,13 @@ $reqs = @(
         Test          = { Test-Command ninja }
         Id            = 'Ninja-build.Ninja'
         Cmd           = 'ninja'
+    },
+    @{
+        Name          = 'Node.js'
+        Test          = { Test-Command node }
+        Id            = 'OpenJS.NodeJS.LTS'
+        Cmd           = 'node'
+        Version       = '24.13.0'
     }
 )
 
@@ -526,8 +533,8 @@ foreach ($r in $reqs) {
                 }
             }
             default {
-                $installerArgs = $r.ContainsKey('InstallerArgs') ? $r['InstallerArgs'] : ''
-                $version = $r.ContainsKey('Version')       ? $r['Version']       : ''
+                if ($r.ContainsKey('InstallerArgs')) { $installerArgs = $r['InstallerArgs'] } else { $installerArgs = '' }
+                if ($r.ContainsKey('Version'))       { $version       = $r['Version']       } else { $version       = '' }
                 Install-Winget -Id $r.Id -InstallerArgs $installerArgs -Version $version
                 if ($r.Name -ne 'Ninja') {
                     if ($r.ContainsKey('Cmd') -and $r['Cmd']) {
@@ -588,7 +595,7 @@ git -C $LlamaRepo submodule update --init --recursive
 
 # --- configure & build ------------------------------------------------------
 # Prepare CMake CUDA architectures argument
-$CudaArchArg = $DetectedSm ? "$DetectedSm" : 'native'
+if ($DetectedSm) { $CudaArchArg = "$DetectedSm" } else { $CudaArchArg = 'native' }
 if ($DetectedSm) {
     Write-Host ("-> Using detected compute capability sm_{0}" -f $DetectedSm)
 } else {
@@ -608,8 +615,18 @@ cmake .. -G Ninja `
     $cudaRootArg
 
 Write-Host '-> building upstream llama.cpp tools (Release) ...'
-cmake --build . --config Release --target llama-server llama-batched-bench llama-cli llama-bench --parallel
+cmake --build . --config Release --target llama-server llama-batched-bench llama-cli llama-bench llama-fit-params --parallel
 Pop-Location
 
 Write-Host ''
 Write-Host ("Done!  llama.cpp binaries are in: ""{0}""." -f (Join-Path $LlamaBuild 'bin'))
+
+# --- Install qwen-code CLI --------------------------------------------------
+Write-Host "-> installing qwen-code CLI globally..."
+# Refresh env to make sure node/npm are in path if they were just installed
+Refresh-Env
+# Ensure npm is in the path
+Ensure-CommandAvailable -Cmd 'npm' -TimeoutMin 2
+# Use cmd /c to run npm to avoid PowerShell execution policy issues with npm.ps1 shims
+& cmd /c "npm install -g @qwen-code/qwen-code@latest"
+Write-Host "[OK] qwen-code CLI installed."
