@@ -18,9 +18,49 @@ repo/                     # your checkout
 *   NVIDIA GPU with CUDA 12.4+ (compute ≥ 7.0 recommended)
 *   ~50 GB free disk space (source tree and model)
 
+## Linux Support
+
+This project now includes Bash scripts for **Linux** users (tested on Arch Linux).
+
+### Prerequisites (Linux)
+*   **Arch Linux** (recommended) or another distribution with access to `pacman` (scripts attempt to install dependencies via pacman).
+*   **Git**, **CMake**, **Ninja**, **Node.js**, **npm**.
+*   **CUDA Toolkit** (for CUDA build) or **Vulkan SDK** (for Vulkan build).
+*   ~50 GB free disk space.
+
+### 1. Installation (Linux)
+
+Run the installation script to check for prerequisites, install missing Vulkan headers (on Arch), and build `llama.cpp` for both **CUDA** (if `nvcc` is found) and **Vulkan** (if `glslc`/`vulkan-headers` are found).
+
+```bash
+chmod +x install_llama_cpp.sh
+./install_llama_cpp.sh
+```
+
+### 2. Execution (Linux)
+
+You can run the server with either the CUDA backend or the Vulkan backend.
+
+**Option A: CUDA (Recommended for NVIDIA GPUs)**
+```bash
+chmod +x run_llama_cpp_server.sh
+./run_llama_cpp_server.sh
+```
+
+**Option B: Vulkan (Cross-vendor GPU support)**
+```bash
+chmod +x run_llama_cpp_server_vulkan.sh
+./run_llama_cpp_server_vulkan.sh
+```
+
+These scripts will:
+1.  Download the model if missing.
+2.  Start `llama-server` on port 8080.
+3.  (You can then use `qwen-code` or another client in a separate terminal).
+
 ---
 
-## Setup and Usage
+## Setup and Usage (Windows)
 
 The process is split into two steps:
 1.  **Installation**: Run the `install_llama_cpp.ps1` script once.
