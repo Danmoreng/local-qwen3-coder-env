@@ -43,21 +43,23 @@ $Args = @(
     '--model',             $ModelFile,
     '--alias',             'unsloth/Qwen3-Coder-Next',
     '--fit',               'on',
+    '--fit-target',        '256',
     '--jinja',
+    '--flash-attn',        'on',
     '-c',                  '32768',
-    '-b',                  '4096',
-    '-ub',                 '1024',
+    '-b',                  '1024',
+    '-ub',                 '256',
     '-ctk',                'q8_0',
-    '-ctv',                'q4_0',
+    '-ctv',                'q8_0',
+    '--no-mmap',  
+    '--n-cpu-moe',         '36',  
     '--temp',              '1.0',
     '--top-p',             '0.95',
     '--top-k',             '40',
-    '--min-p',             '0.01',
-    '--seed',              '3407',
-    '--port',              '8001' # Port 8001 as per docs
+    '--min-p',             '0.01'
 )
 
-Write-Host "→ Starting llama-server on http://localhost:8001 ..."
+Write-Host "→ Starting llama-server on http://localhost:8080 ..."
 $ServerProcess = Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -PassThru
 
 # Wait for server to start (simple sleep, ideally would check port)
@@ -69,24 +71,24 @@ $env:OPENAI_API_KEY = "sk-no-key-required"
 $env:OPENAI_BASE_URL = "http://localhost:8001/v1"
 $env:OPENAI_MODEL = "unsloth/Qwen3-Coder-Next"
 
-Write-Host "→ Starting qwen-code CLI in a new window..."
-Write-Host "  (The server logs will stay in this window)"
+#Write-Host "→ Starting qwen-code CLI in a new window..."
+#Write-Host "  (The server logs will stay in this window)"
 
 # Launch qwen-code in a new window using PowerShell 7.
 # We use EncodedCommand to safely pass environment variables and commands without quoting issues.
-$commands = @'
-$env:OPENAI_API_KEY = "sk-no-key-required"
-$env:OPENAI_BASE_URL = "http://localhost:8001/v1"
-$env:OPENAI_MODEL = "unsloth/Qwen3-Coder-Next"
-qwen
-'@
-$bytes = [System.Text.Encoding]::Unicode.GetBytes($commands)
-$encoded = [Convert]::ToBase64String($bytes)
-Start-Process pwsh -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded
+#$commands = @'
+#$env:OPENAI_API_KEY = "sk-no-key-required"
+#$env:OPENAI_BASE_URL = "http://localhost:8001/v1"
+#$env:OPENAI_MODEL = "unsloth/Qwen3-Coder-Next"
+#qwen
+#'@
+#$bytes = [System.Text.Encoding]::Unicode.GetBytes($commands)
+#$encoded = [Convert]::ToBase64String($bytes)
+#Start-Process pwsh -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded
 
-Write-Host "→ Press any key to stop the llama-server and exit..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+#Write-Host "→ Press any key to stop the llama-server and exit..."
+#$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
 # Cleanup server
-Write-Host "→ Stopping llama-server..."
-Stop-Process -Id $ServerProcess.Id -Force
+#Write-Host "→ Stopping llama-server..."
+#Stop-Process -Id $ServerProcess.Id -Force
