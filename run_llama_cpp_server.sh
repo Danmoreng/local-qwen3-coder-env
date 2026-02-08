@@ -53,13 +53,11 @@ echo "-> Starting llama-server on http://localhost:8080 ..."
     --fit-target 256 \
     --jinja \
     --flash-attn on \
-    -c 32768 \
+    --fit-ctx 32768 \
     -b 1024 \
     -ub 256 \
     -ctk q8_0 \
     -ctv q8_0 \
-    --no-mmap \
-    --n-cpu-moe 36 \
     --temp 1.0 \
     --top-p 0.95 \
     --top-k 40 \
