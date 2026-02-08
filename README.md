@@ -53,18 +53,27 @@ chmod +x run_llama_cpp_server_vulkan.sh
 ./run_llama_cpp_server_vulkan.sh
 ```
 
+**Step 3: Start the Agent (Linux)**
+Open a **new** terminal and run:
+
+```bash
+chmod +x run_qwen_agent.sh
+./run_qwen_agent.sh
+```
+
 These scripts will:
 1.  Download the model if missing.
 2.  Start `llama-server` on port 8080.
-3.  (You can then use `qwen-code` or another client in a separate terminal).
+3.  Launch the `qwen-code` CLI tool pre-configured for the local server.
 
 ---
 
 ## Setup and Usage (Windows)
 
-The process is split into two steps:
+The process is split into three steps:
 1.  **Installation**: Run the `install_llama_cpp.ps1` script once.
-2.  **Execution**: Run the `run_llama_cpp_server.ps1` script to start the server and the coding assistant.
+2.  **Server**: Run `run_llama_cpp_server.ps1` to start the model server.
+3.  **Agent**: Run `run_qwen_agent.ps1` in a new window to start the coding assistant.
 
 ### 1. Installation
 
@@ -83,7 +92,8 @@ Set-ExecutionPolicy Bypass -Scope Process
 
 ### 2. Execution
 
-Once the installation is complete, start the environment.
+**Step A: Start the Server**
+Open a PowerShell terminal and run:
 
 ```powershell
 ./run_llama_cpp_server.ps1
@@ -91,8 +101,17 @@ Once the installation is complete, start the environment.
 
 This script will:
 1.  Download the **`Qwen3-Coder-Next-UD-Q4_K_XL.gguf`** model (~45GB) if not already present.
-2.  Start the `llama-server` on **port 8001** with optimized settings for the model.
-3.  Launch the `qwen-code` CLI tool, pre-configured to talk to the local server.
+2.  Start `llama-server` on **port 8080** with optimized settings.
+3.  Wait for connections (keep this window open).
+
+**Step B: Start the Agent**
+Open a **new** PowerShell terminal and run:
+
+```powershell
+./run_qwen_agent.ps1
+```
+
+This will configure the environment and launch the `qwen-code` CLI, connected to your local server.
 
 ---
 
@@ -102,26 +121,31 @@ This script will:
 *   `-SkipBuild`: Skips cloning and building `llama.cpp`. Use this if you only need to re-verify prerequisites or reinstall the CLI.
 
 ### `run_llama_cpp_server.ps1`
-*   (No arguments required. Thread count is auto-detected.)
+*   (No arguments required.)
+
+### `run_qwen_agent.ps1`
+*   (No arguments required. Connects to `localhost:8080`.)
 
 ---
 
 ## Parameter Explanations
 
-The `run` script uses a set of optimized flags to launch the server for `Qwen3-Coder-Next`.
+The `run` scripts use a set of optimized flags to launch the server for `Qwen3-Coder-Next`.
 
 | Flag | Purpose | Value |
 | --- | --- | --- |
-| `-c 32768` | Sets the context size to 32k for efficient local use. | `32768` |
+| `--fit-ctx 32768` | Fits the context to 32k, managing VRAM usage efficiently. | `32768` |
 | `--fit on` | Automatically offloads layers between GPU and CPU based on available VRAM. | `on` |
 | `-ctk q8_0` | Quantizes the 'key' part of the KV cache to save memory. | `q8_0` |
-| `-ctv q4_0` | Quantizes the 'value' part of the KV cache. | `q4_0` |
+| `-ctv q8_0` | Quantizes the 'value' part of the KV cache. | `q8_0` |
 | `--temp 1.0` | Recommended temperature for this model. | `1.0` |
 | `--min-p 0.01` | Minimum probability threshold. | `0.01` |
 
-> **Note:** The script launches `llama-server` in the main window and opens a **new PowerShell 7 window** for the `qwen-code` CLI. This window is automatically configured with the following environment variables to route requests to the local server:
+**Performance Note:** Recent updates to the Linux script (`run_llama_cpp_server.sh`) removed manual CPU offloading (`--n-cpu-moe`) and enabled memory mapping (removed `--no-mmap`), resulting in significant performance gains (e.g., ~34.6 t/s on RTX 5080 Mobile).
+
+> **Note:** The `run_qwen_agent.ps1` script (Windows) or manual configuration (Linux) ensures the `qwen-code` CLI uses the following settings:
 > * `OPENAI_API_KEY`: `sk-no-key-required`
-> * `OPENAI_BASE_URL`: `http://localhost:8001/v1`
+> * `OPENAI_BASE_URL`: `http://localhost:8080/v1`
 > * `OPENAI_MODEL`: `unsloth/Qwen3-Coder-Next`
 
 ## License
