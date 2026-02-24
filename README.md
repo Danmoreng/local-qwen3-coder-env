@@ -11,6 +11,26 @@ A streamlined environment for running **Qwen3-Coder** and **Qwen3.5** models loc
 
 ---
 
+## Automatic Dependency Management
+
+The installation scripts (`install_llama_cpp.sh` and `install_llama_cpp.ps1`) attempt to automatically install or verify the following dependencies:
+
+### Linux (via `pacman` or system package manager)
+- **Git**, **CMake**, **Ninja**
+- **Node.js** (LTS) & **npm**
+- **CUDA Toolkit** (12.4+ for NVIDIA GPUs)
+- **Vulkan SDK** (`shaderc`, `vulkan-headers`, `vulkan-icd-loader`)
+- **qwen-code** CLI (installed via npm)
+
+### Windows (via `winget`)
+- **Git**, **CMake**, **Ninja**
+- **Node.js** (v24.13.0) & **npm**
+- **Visual Studio 2022 Build Tools** (C++ Workload & Windows SDK)
+- **CUDA Toolkit** (12.4.1 Toolkit only, avoids driver/GFE bloat)
+- **qwen-code** CLI (installed via npm)
+
+---
+
 ## Quick Start (Linux)
 
 ### 1. Installation
@@ -73,7 +93,26 @@ To use a custom model not listed in the presets:
 
 ## Server Optimization Details
 
-The environment uses several key optimizations to ensure smooth performance on consumer hardware:
+The environment uses several key optimizations to ensure smooth performance on consumer hardware. The exact command used to launch the server is:
+
+```bash
+llama-server \
+    --model <model_path> \
+    --alias <alias_name> \
+    --fit on \
+    --fit-target 256 \
+    --jinja \
+    --flash-attn on \
+    --fit-ctx <context_size> \
+    -b 1024 \
+    -ub 256 \
+    -ctk q8_0 \
+    -ctv q8_0 \
+    --temp 1.0 \
+    --top-p 0.95 \
+    --top-k 40 \
+    --min-p 0.01
+```
 
 | Optimization | Purpose |
 | --- | --- |
@@ -86,8 +125,8 @@ The environment uses several key optimizations to ensure smooth performance on c
 
 - `vendor/llama.cpp/`: The engine powering the local inference.
 - `models/`: Storage for GGUF model files.
-- `select_model.sh`: Interactive configuration tool.
-- `run_qwen_agent.sh`: Launches the `qwen-code` CLI pre-configured for the local environment.
+- `select_model.sh` / `select_model.ps1`: Interactive configuration tool.
+- `run_qwen_agent.sh` / `run_qwen_agent.ps1`: Launches the `qwen-code` CLI.
 
 ## License
 
