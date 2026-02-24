@@ -1,6 +1,6 @@
 <#  run_llama_cpp_server.ps1  PowerShell 5/7
     ----------------------------------------------------------
-    • Manages model selection and download
+    • Manages model selection and download (supports shards)
     • Launches llama-server.exe from llama.cpp with optimized settings
 #>
 
@@ -21,22 +21,13 @@ if (-not (Test-Path $ConfigFile)) {
 # Load Configuration
 . $ConfigFile
 
-$ModelFile = Join-Path $ModelDir $MODEL_FILENAME
-
-function Download-IfNeeded {
+function Download-File {
     param([string]$Url, [string]$Destination, [string]$Label)
     if (Test-Path $Destination) {
         Write-Host "[OK] $Label found → $Destination"
-        return
+        return $true
     }
-    if ($Url -eq "NONE" -or $Url -eq "LOCAL") {
-        if ($Label -eq "Model") {
-            throw "Model file '$Destination' not found and no download URL available."
-        } else {
-            Write-Host "-> No vision projector URL/file found for this selection. Skipping mmproj."
-            return $false
-        }
-    }
+    if ($Url -eq "NONE" -or $Url -eq "LOCAL") { return $false }
     
     New-Item -ItemType Directory -Path (Split-Path $Destination) -Force | Out-Null
     Write-Host "→ downloading $Label : $Url"
@@ -49,15 +40,28 @@ function Download-IfNeeded {
     return $true
 }
 
-Download-IfNeeded -Url $MODEL_URL -Destination $ModelFile -Label "Model"
+# Handle Shards or Single File
+if ($MODEL_SHARDS -gt 1) {
+    for ($i = 1; $i -le $MODEL_SHARDS; $i++) {
+        $shardSuffix = "-$($i.ToString('00000'))-of-$($MODEL_SHARDS.ToString('00000')).gguf"
+        $shardFilename = "${MODEL_FILENAME}${shardSuffix}"
+        $shardUrl = "${MODEL_URL}${shardSuffix}"
+        $shardPath = Join-Path $ModelDir $shardFilename
+        Download-File -Url $shardUrl -Destination $shardPath -Label "Shard $i/$MODEL_SHARDS"
+    }
+    $ModelFile = Join-Path $ModelDir ("${MODEL_FILENAME}-00001-of-$($MODEL_SHARDS.ToString('00000')).gguf")
+} else {
+    $ModelFile = Join-Path $ModelDir $MODEL_FILENAME
+    Download-File -Url $MODEL_URL -Destination $ModelFile -Label "Model"
+}
 
+# Vision Projector
 $MmprojArg = @()
 $FitTarget = "256"
 if ($MMPROJ_FILENAME -ne "NONE") {
     $MmprojPath = Join-Path $ModelDir $MMPROJ_FILENAME
-    $success = Download-IfNeeded -Url $MMPROJ_URL -Destination $MmprojPath -Label "Vision Projector"
-    if ((Test-Path $MmprojPath)) {
-        # Offload vision projector to GPU and reserve VRAM
+    Download-File -Url $MMPROJ_URL -Destination $MmprojPath -Label "Vision Projector"
+    if (Test-Path $MmprojPath) {
         $MmprojArg = @('--mmproj', $MmprojPath, '--mmproj-offload')
         $FitTarget = "1536"
         Write-Host "-> Vision model detected. Using GPU offload and FIT_TARGET=$FitTarget"
@@ -68,9 +72,7 @@ if ($MMPROJ_FILENAME -ne "NONE") {
 $Env:LLAMA_SET_ROWS = '1'
 
 # Recommended parameters
-$Args = @(
-    '--model',             $ModelFile
-)
+$Args = @('--model', $ModelFile)
 $Args += $MmprojArg
 $Args += @(
     '--alias',             $MODEL_ALIAS,

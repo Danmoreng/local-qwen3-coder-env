@@ -9,11 +9,11 @@ if (-not (Test-Path $ModelDir)) {
 
 # 1. Define Known Models
 $KnownModels = @(
-    @{ Name = "Qwen3-Coder-Next (80B MoE) - Q4_K_XL"; Url = "https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-UD-Q4_K_XL.gguf"; Alias = "unsloth/Qwen3-Coder-Next"; Ctx = 32768; Filename = "Qwen3-Coder-Next-UD-Q4_K_XL.gguf"; MmprojUrl = "NONE"; MmprojFilename = "NONE" },
-    @{ Name = "Qwen3-Coder-Next (80B MoE) - MXFP4";   Url = "https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-UD-Q4_K_XL.gguf";   Alias = "unsloth/Qwen3-Coder-Next-MXFP4";   Ctx = 65536; Filename = "Qwen3-Coder-Next-MXFP4_MOE.gguf"; MmprojUrl = "NONE"; MmprojFilename = "NONE" },
-    @{ Name = "Qwen3.5-27B (Dense) - Q4_K_M";        Url = "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/Qwen3.5-27B-Q4_K_M.gguf";        Alias = "unsloth/Qwen3.5-27B";        Ctx = 32768; Filename = "Qwen3.5-27B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-27B.gguf" },
-    @{ Name = "Qwen3.5-35B-A3B (MoE) - Q4_K_M";      Url = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf";      Alias = "unsloth/Qwen3.5-35B-A3B";      Ctx = 32768; Filename = "Qwen3.5-35B-A3B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-35B.gguf" },
-    @{ Name = "Qwen3.5-122B-A10B (MoE) - Q4_K_M";    Url = "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/Qwen3.5-122B-A10B-Q4_K_M.gguf";    Alias = "unsloth/Qwen3.5-122B-A10B";    Ctx = 32768; Filename = "Qwen3.5-122B-A10B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-122B.gguf" }
+    @{ Name = "Qwen3-Coder-Next (80B MoE) - Q4_K_XL"; Url = "https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-UD-Q4_K_XL.gguf"; Alias = "unsloth/Qwen3-Coder-Next"; Ctx = 32768; Filename = "Qwen3-Coder-Next-UD-Q4_K_XL.gguf"; MmprojUrl = "NONE"; MmprojFilename = "NONE"; Shards = 1 },
+    @{ Name = "Qwen3-Coder-Next (80B MoE) - MXFP4";   Url = "https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-UD-Q4_K_XL.gguf";   Alias = "unsloth/Qwen3-Coder-Next-MXFP4";   Ctx = 65536; Filename = "Qwen3-Coder-Next-MXFP4_MOE.gguf"; MmprojUrl = "NONE"; MmprojFilename = "NONE"; Shards = 1 },
+    @{ Name = "Qwen3.5-27B (Dense) - Q4_K_M";        Url = "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/Qwen3.5-27B-Q4_K_M.gguf";        Alias = "unsloth/Qwen3.5-27B";        Ctx = 32768; Filename = "Qwen3.5-27B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-27B.gguf"; Shards = 1 },
+    @{ Name = "Qwen3.5-35B-A3B (MoE) - Q4_K_M";      Url = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf";      Alias = "unsloth/Qwen3.5-35B-A3B";      Ctx = 32768; Filename = "Qwen3.5-35B-A3B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-35B.gguf"; Shards = 1 },
+    @{ Name = "Qwen3.5-122B-A10B (MoE) - UD-Q4_K_XL";Url = "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/UD-Q4_K_XL/Qwen3.5-122B-A10B-UD-Q4_K_XL"; Alias = "unsloth/Qwen3.5-122B-A10B"; Ctx = 32768; Filename = "Qwen3.5-122B-A10B-UD-Q4_K_XL"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-122B.gguf"; Shards = 3 }
 )
 
 # 2. Collect All Options
@@ -24,11 +24,12 @@ foreach ($km in $KnownModels) { $AllOptions.Add((New-Object PSObject -Property $
 $LocalFiles = Get-ChildItem -Path $ModelDir -Filter "*.gguf"
 foreach ($file in $LocalFiles) {
     if ($file.Name -like "mmproj*") { continue }
+    if ($file.Name -match "-0000[2-9]") { continue }
     $found = $false
     foreach ($km in $KnownModels) { if ($km.Filename -eq $file.Name) { $found = $true; break } }
     if (-not $found) {
         $AllOptions.Add((New-Object PSObject -Property @{
-            Name = "Local: $($file.Name)"; Url = "NONE"; Alias = "local/$($file.BaseName)"; Ctx = 32768; Filename = $file.Name; MmprojUrl = "NONE"; MmprojFilename = "NONE"
+            Name = "Local: $($file.Name)"; Url = "NONE"; Alias = "local/$($file.BaseName)"; Ctx = 32768; Filename = $file.Name; MmprojUrl = "NONE"; MmprojFilename = "NONE"; Shards = 1
         }))
     }
 }
@@ -40,7 +41,9 @@ Write-Host "------------------------------------------"
 for ($i = 0; $i -lt $AllOptions.Count; $i++) {
     $opt = $AllOptions[$i]
     $status = ""
-    if (Test-Path (Join-Path $ModelDir $opt.Filename)) { $status = "[Found]" }
+    $checkFile = $opt.Filename
+    if ($opt.Shards -gt 1) { $checkFile = "$($opt.Filename)-00001-of-$($opt.Shards.ToString('00000')).gguf" }
+    if (Test-Path (Join-Path $ModelDir $checkFile)) { $status = "[Found]" }
     Write-Host "[$($i + 1)] $($opt.Name) $status"
 }
 Write-Host "------------------------------------------"
@@ -59,9 +62,7 @@ if ($index -ge 0 -and $index -lt $AllOptions.Count) {
             if ($userMmproj -match "^http") {
                 $Selected.MmprojUrl = $userMmproj
                 $Selected.MmprojFilename = "mmproj-custom-$([DateTimeOffset]::Now.ToUnixTimeSeconds()).gguf"
-            } else {
-                $Selected.MmprojFilename = $userMmproj
-            }
+            } else { $Selected.MmprojFilename = $userMmproj }
         }
     }
 
@@ -73,10 +74,9 @@ if ($index -ge 0 -and $index -lt $AllOptions.Count) {
 `$MODEL_FILENAME = '$($Selected.Filename)'
 `$MMPROJ_URL = '$($Selected.MmprojUrl)'
 `$MMPROJ_FILENAME = '$($Selected.MmprojFilename)'
+`$MODEL_SHARDS = $($Selected.Shards)
 "@
     Set-Content -Path $ConfigFile -Value $ConfigContent
     Write-Host "Selected: $($Selected.Name)"
     Write-Host "Config saved to .model_config.ps1"
-} else {
-    Write-Error "Invalid selection."; exit 1
-}
+} else { Write-Error "Invalid selection."; exit 1 }

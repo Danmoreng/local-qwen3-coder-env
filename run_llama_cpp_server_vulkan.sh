@@ -25,8 +25,6 @@ fi
 
 source "$CONFIG_FILE"
 
-MODEL_FILE="$MODEL_DIR/$MODEL_FILENAME"
-
 # Helper to download
 download_file() {
     local url=$1
@@ -42,13 +40,29 @@ download_file() {
     fi
 }
 
-# Download Model
-if [ ! -f "$MODEL_FILE" ]; then
-    echo "-> Model not found: $MODEL_NAME"
-    mkdir -p "$MODEL_DIR"
-    download_file "$MODEL_URL" "$MODEL_FILE"
+# Download Model (Handling Shards)
+if [[ "$MODEL_SHARDS" -gt 1 ]]; then
+    # Sharded model
+    for i in $(seq 1 "$MODEL_SHARDS"); do
+        shard_suffix="-$(printf "%05d" $i)-of-$(printf "%05d" "$MODEL_SHARDS").gguf"
+        shard_filename="${MODEL_FILENAME}${shard_suffix}"
+        shard_url="${MODEL_URL}${shard_suffix}"
+        shard_path="$MODEL_DIR/$shard_filename"
+        
+        if [ ! -f "$shard_path" ]; then
+            echo "-> Shard $i/$MODEL_SHARDS not found."
+            download_file "$shard_url" "$shard_path"
+        fi
+    done
+    # Pointer for llama-server is the first shard
+    MODEL_FILE="$MODEL_DIR/${MODEL_FILENAME}-00001-of-$(printf "%05d" "$MODEL_SHARDS").gguf"
 else
-    echo "[OK] Model found: $MODEL_FILE"
+    # Single file model
+    MODEL_FILE="$MODEL_DIR/$MODEL_FILENAME"
+    if [ ! -f "$MODEL_FILE" ]; then
+        echo "-> Model not found: $MODEL_NAME"
+        download_file "$MODEL_URL" "$MODEL_FILE"
+    fi
 fi
 
 # Vision Model Handling
@@ -62,7 +76,6 @@ if [[ "$MMPROJ_FILENAME" != "NONE" ]]; then
     fi
     
     if [ -f "$MMPROJ_PATH" ]; then
-        # Offload vision projector to GPU and reserve VRAM
         MMPROJ_ARG="--mmproj $MMPROJ_PATH --mmproj-offload"
         FIT_TARGET="1536"
         echo "-> Vision model detected. Using GPU offload and FIT_TARGET=$FIT_TARGET"
