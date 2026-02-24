@@ -5,6 +5,7 @@ A streamlined environment for running **Qwen3-Coder** and **Qwen3.5** models loc
 ## Features
 
 - **Modular Model Selection**: Choose between various Qwen3-Coder and Qwen3.5 variants (27B, 35B MoE, 80B MoE, 122B MoE).
+- **Vision Model Support**: Full multimodal support for the **Qwen 3.5** family. The environment automatically manages the necessary vision projectors (`mmproj`).
 - **Auto-Detection**: Automatically detects any `.gguf` files placed in the `models/` directory.
 - **Optimized Performance**: Pre-configured with flags for Flash Attention, KV-cache quantization, and MoE-specific optimizations.
 - **Cross-Platform**: Full support for Linux (CUDA/Vulkan) and Windows (CUDA).
@@ -81,26 +82,28 @@ Start the server and agent in separate windows:
 
 ---
 
-## Custom Models
+## Custom Models & Vision
 
 To use a custom model not listed in the presets:
 1. Place your `.gguf` file in the `models/` directory.
 2. Run `./select_model.sh`.
 3. Your file will appear as a `Local: [filename]` option.
 4. Select it and specify the desired context size when prompted.
+5. If the model is a vision model, you will be prompted for an `mmproj` URL or local file path.
 
 ---
 
 ## Server Optimization Details
 
-The environment uses several key optimizations to ensure smooth performance on consumer hardware. The exact command used to launch the server is:
+The environment uses several key optimizations to ensure smooth performance on consumer hardware. 
 
 ```bash
 llama-server \
     --model <model_path> \
+    [--mmproj <mmproj_path> --mmproj-offload] \
     --alias <alias_name> \
     --fit on \
-    --fit-target 256 \
+    --fit-target <256 or 1536> \
     --jinja \
     --flash-attn on \
     --fit-ctx <context_size> \
@@ -114,17 +117,18 @@ llama-server \
     --min-p 0.01
 ```
 
-| Optimization | Purpose |
-| --- | --- |
-| **Flash Attention** | Significant speedup and memory reduction during inference. |
-| **KV Quantization** | `-ctk q8_0 -ctv q8_0` saves VRAM by quantizing the KV cache. |
-| **Context Fitting** | Dynamic context management to maximize efficiency without OOM. |
-| **MoE Support** | Specific handling for the Mixture-of-Experts architecture in Qwen models. |
+| Optimization | Purpose | Details |
+| --- | --- | --- |
+| **Flash Attention** | Faster inference | Enabled by default for all models. |
+| **Vision GPU Offload** | Fast prompt processing | Projector is offloaded to GPU when available. |
+| **KV Quantization** | VRAM Efficiency | `-ctk q8_0 -ctv q8_0` saves significant memory. |
+| **Context Fitting** | Dynamic Offloading | Uses `--fit-target 256` for text models and `1536` for vision models. |
+| **MoE Support** | Architecture Tuning | Specific handling for Mixture-of-Experts (Qwen MoE). |
 
 ## Project Structure
 
 - `vendor/llama.cpp/`: The engine powering the local inference.
-- `models/`: Storage for GGUF model files.
+- `models/`: Storage for GGUF model files and vision projectors.
 - `select_model.sh` / `select_model.ps1`: Interactive configuration tool.
 - `run_qwen_agent.sh` / `run_qwen_agent.ps1`: Launches the `qwen-code` CLI.
 
