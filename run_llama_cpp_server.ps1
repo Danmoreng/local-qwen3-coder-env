@@ -1,30 +1,40 @@
 <#  run_llama_cpp_server.ps1  PowerShell 5/7
     ----------------------------------------------------------
-    • Stores GGUF under .\models\ next to this script
-    • Resumable download via BITS, fallback = Invoke-WebRequest
-    • Launches llama-server.exe from llama.cpp with Qwen-3 Coder + speculative decoding
+    • Manages model selection and download
+    • Launches llama-server.exe from llama.cpp with optimized settings
 #>
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $ServerExe  = Join-Path $ScriptRoot 'vendor\llama.cpp\build\bin\llama-server.exe'
+$ConfigFile = Join-Path $ScriptRoot ".model_config.ps1"
+$ModelDir   = Join-Path $ScriptRoot 'models'
 
 if (-not (Test-Path $ServerExe)) {
-    throw "llama-server.exe not found at '$ServerExe' – check the path."
+    throw "llama-server.exe not found at '$ServerExe' – please run install_llama_cpp.ps1 first."
 }
 
-$ModelDir       = Join-Path $ScriptRoot 'models'
-# Main 30B model
-$ModelUrl       = 'https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-UD-Q4_K_XL.gguf'
-$ModelFile      = Join-Path $ModelDir (Split-Path $ModelUrl -Leaf)
+# Ensure model is selected
+if (-not (Test-Path $ConfigFile)) {
+    & (Join-Path $ScriptRoot "select_model.ps1")
+}
+
+# Load Configuration
+. $ConfigFile
+
+$ModelFile = Join-Path $ModelDir $MODEL_FILENAME
 
 function Download-IfNeeded {
-    param([string]$Url, [Alias('Dest')][string]$Destination)
+    param([string]$Url, [string]$Destination)
     if (Test-Path $Destination) {
-        Write-Host "[OK] Cached → $Destination"
+        Write-Host "[OK] Model found → $Destination"
         return
     }
+    if ($Url -eq "NONE") {
+        throw "Model file '$Destination' not found and no download URL available for this local selection."
+    }
+    
     New-Item -ItemType Directory -Path (Split-Path $Destination) -Force | Out-Null
-    Write-Host "→ downloading: $Url"
+    Write-Host "→ downloading $MODEL_NAME : $Url"
     if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
         Start-BitsTransfer -Source $Url -Destination $Destination
     } else {
@@ -33,20 +43,20 @@ function Download-IfNeeded {
     Write-Host "[OK] Download complete."
 }
 
-Download-IfNeeded -Url $ModelUrl      -Destination $ModelFile
+Download-IfNeeded -Url $MODEL_URL -Destination $ModelFile
 
 # Row-major speedup
 $Env:LLAMA_SET_ROWS = '1'
 
-# Recommended parameters for Qwen3-Coder-Next
+# Recommended parameters
 $Args = @(
     '--model',             $ModelFile,
-    '--alias',             'unsloth/Qwen3-Coder-Next',
+    '--alias',             $MODEL_ALIAS,
     '--fit',               'on',
     '--fit-target',        '256',
     '--jinja',
     '--flash-attn',        'on',
-    '--fit-ctx',           '32768',
+    '--fit-ctx',           $MODEL_CTX,
     '-b',                  '1024',
     '-ub',                 '256',
     '-ctk',                'q8_0',
@@ -57,7 +67,5 @@ $Args = @(
     '--min-p',             '0.01'
 )
 
-Write-Host "→ Starting llama-server on http://localhost:8080 ..."
-# Start the process in the current console (NoNewWindow) and wait for it to exit
-# This allows the user to see logs directly and kill it with Ctrl+C
+Write-Host "→ Starting llama-server for $MODEL_NAME on http://localhost:8080 ..."
 Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -Wait
