@@ -27,24 +27,46 @@ source "$CONFIG_FILE"
 
 MODEL_FILE="$MODEL_DIR/$MODEL_FILENAME"
 
+# Helper to download
+download_file() {
+    local url=$1
+    local dest=$2
+    echo "-> Downloading: $url"
+    if command -v wget >/dev/null 2>&1; then
+        wget -c "$url" -O "$dest"
+    elif command -v curl >/dev/null 2>&1; then
+        curl -L -C - "$url" -o "$dest"
+    else
+        echo "Error: Neither 'wget' nor 'curl' found. Cannot download."
+        exit 1
+    fi
+}
+
 # Download Model
 if [ ! -f "$MODEL_FILE" ]; then
     echo "-> Model not found: $MODEL_NAME"
-    echo "-> Preparing to download..."
     mkdir -p "$MODEL_DIR"
-    
-    echo "-> Downloading: $MODEL_URL"
-    if command -v wget >/dev/null 2>&1; then
-        wget -c "$MODEL_URL" -O "$MODEL_FILE"
-    elif command -v curl >/dev/null 2>&1; then
-        curl -L -C - "$MODEL_URL" -o "$MODEL_FILE"
-    else
-        echo "Error: Neither 'wget' nor 'curl' found. Cannot download model."
-        exit 1
-    fi
-    echo "[OK] Download complete."
+    download_file "$MODEL_URL" "$MODEL_FILE"
 else
     echo "[OK] Model found: $MODEL_FILE"
+fi
+
+# Vision Model Handling
+MMPROJ_ARG=""
+FIT_TARGET="256"
+if [[ "$MMPROJ_FILENAME" != "NONE" ]]; then
+    MMPROJ_PATH="$MODEL_DIR/$MMPROJ_FILENAME"
+    if [ ! -f "$MMPROJ_PATH" ] && [[ "$MMPROJ_URL" != "NONE" && "$MMPROJ_URL" != "LOCAL" ]]; then
+        echo "-> Vision projector not found. Downloading..."
+        download_file "$MMPROJ_URL" "$MMPROJ_PATH"
+    fi
+    
+    if [ -f "$MMPROJ_PATH" ]; then
+        # Offload vision projector to GPU and reserve VRAM
+        MMPROJ_ARG="--mmproj $MMPROJ_PATH --mmproj-offload"
+        FIT_TARGET="1536"
+        echo "-> Vision model detected. Using GPU offload and FIT_TARGET=$FIT_TARGET"
+    fi
 fi
 
 # Environment Variables
@@ -54,9 +76,10 @@ echo "-> Starting llama-server (Vulkan) for $MODEL_NAME on http://localhost:8080
 
 "$SERVER_EXE" \
     --model "$MODEL_FILE" \
+    $MMPROJ_ARG \
     --alias "$MODEL_ALIAS" \
     --fit on \
-    --fit-target 256 \
+    --fit-target "$FIT_TARGET" \
     --jinja \
     --fit-ctx "$MODEL_CTX" \
     -b 1024 \

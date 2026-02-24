@@ -3,3 +3,5 @@ MODEL_URL="https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen
 MODEL_ALIAS="unsloth/Qwen3.5-35B-A3B"
 MODEL_CTX="32768"
 MODEL_FILENAME="Qwen3.5-35B-A3B-Q4_K_M.gguf"
+MMPROJ_URL="https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf"
+MMPROJ_FILENAME="mmproj-Qwen3.5-35B.gguf"

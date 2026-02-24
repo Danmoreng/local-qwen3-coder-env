@@ -24,36 +24,58 @@ if (-not (Test-Path $ConfigFile)) {
 $ModelFile = Join-Path $ModelDir $MODEL_FILENAME
 
 function Download-IfNeeded {
-    param([string]$Url, [string]$Destination)
+    param([string]$Url, [string]$Destination, [string]$Label)
     if (Test-Path $Destination) {
-        Write-Host "[OK] Model found → $Destination"
+        Write-Host "[OK] $Label found → $Destination"
         return
     }
-    if ($Url -eq "NONE") {
-        throw "Model file '$Destination' not found and no download URL available for this local selection."
+    if ($Url -eq "NONE" -or $Url -eq "LOCAL") {
+        if ($Label -eq "Model") {
+            throw "Model file '$Destination' not found and no download URL available."
+        } else {
+            Write-Host "-> No vision projector URL/file found for this selection. Skipping mmproj."
+            return $false
+        }
     }
     
     New-Item -ItemType Directory -Path (Split-Path $Destination) -Force | Out-Null
-    Write-Host "→ downloading $MODEL_NAME : $Url"
+    Write-Host "→ downloading $Label : $Url"
     if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
         Start-BitsTransfer -Source $Url -Destination $Destination
     } else {
         Invoke-WebRequest -Uri $Url -OutFile $Destination
     }
     Write-Host "[OK] Download complete."
+    return $true
 }
 
-Download-IfNeeded -Url $MODEL_URL -Destination $ModelFile
+Download-IfNeeded -Url $MODEL_URL -Destination $ModelFile -Label "Model"
+
+$MmprojArg = @()
+$FitTarget = "256"
+if ($MMPROJ_FILENAME -ne "NONE") {
+    $MmprojPath = Join-Path $ModelDir $MMPROJ_FILENAME
+    $success = Download-IfNeeded -Url $MMPROJ_URL -Destination $MmprojPath -Label "Vision Projector"
+    if ((Test-Path $MmprojPath)) {
+        # Offload vision projector to GPU and reserve VRAM
+        $MmprojArg = @('--mmproj', $MmprojPath, '--mmproj-offload')
+        $FitTarget = "1536"
+        Write-Host "-> Vision model detected. Using GPU offload and FIT_TARGET=$FitTarget"
+    }
+}
 
 # Row-major speedup
 $Env:LLAMA_SET_ROWS = '1'
 
 # Recommended parameters
 $Args = @(
-    '--model',             $ModelFile,
+    '--model',             $ModelFile
+)
+$Args += $MmprojArg
+$Args += @(
     '--alias',             $MODEL_ALIAS,
     '--fit',               'on',
-    '--fit-target',        '256',
+    '--fit-target',        $FitTarget,
     '--jinja',
     '--flash-attn',        'on',
     '--fit-ctx',           $MODEL_CTX,
