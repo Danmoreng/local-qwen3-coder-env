@@ -85,6 +85,22 @@ fi
 # Environment Variables
 export LLAMA_SET_ROWS=1
 
+# Sampling Parameters based on model series
+TEMP="1.0"
+TOP_P="0.95"
+TOP_K="40"
+MIN_P="0.01"
+
+if [[ "$MODEL_NAME" == *"Qwen3.5"* ]]; then
+    # Optimized for "Thinking Mode: Precise Coding"
+    TEMP="0.6"
+    TOP_K="20"
+    MIN_P="0.0"
+    echo "-> Qwen 3.5 detected. Applying 'Thinking: Precise Coding' sampling parameters."
+else
+    echo "-> Qwen 3 Coder detected. Applying standard coding sampling parameters."
+fi
+
 echo "-> Starting llama-server (Vulkan) for $MODEL_NAME on http://localhost:8080 ..."
 
 "$SERVER_EXE" \
@@ -100,7 +116,7 @@ echo "-> Starting llama-server (Vulkan) for $MODEL_NAME on http://localhost:8080
     -ctk q8_0 \
     -ctv q8_0 \
     --no-mmap \
-    --temp 1.0 \
-    --top-p 0.95 \
-    --top-k 40 \
-    --min-p 0.01
+    --temp "$TEMP" \
+    --top-p "$TOP_P" \
+    --top-k "$TOP_K" \
+    --min-p "$MIN_P"
