@@ -93,6 +93,28 @@ To use a custom model not listed in the presets:
 
 ---
 
+## Sampling Parameters & Modes
+
+The environment automatically adjusts sampling parameters based on the selected model to ensure optimal results for coding and reasoning tasks.
+
+### Automated Defaults (Precise Coding)
+When you start the server, it detects the model type and applies these settings:
+
+| Model Series | Mode | Temp | Top-P | Top-K | Min-P |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Qwen 3 Coder** | **Standard Coding** | 1.0 | 0.95 | 40 | 0.01 |
+| **Qwen 3.5** | **Thinking: Precise Coding** | 0.6 | 0.95 | 20 | 0.0 |
+
+### Alternative Qwen 3.5 Recommendations
+For non-coding tasks with the **Qwen 3.5** series, you may manually adjust parameters in the server or UI:
+
+- **Thinking Mode (General Reasoning):**
+  - `temp=1.0`, `top_p=0.95`, `top_k=20`, `presence_penalty=1.5`
+- **Instruct Mode (Standard Chat):**
+  - `temp=0.7`, `top_p=0.8`, `top_k=20`, `presence_penalty=1.5`
+
+---
+
 ## Server Optimization Details
 
 The environment uses several key optimizations to ensure smooth performance on consumer hardware. 
@@ -111,10 +133,10 @@ llama-server \
     -ub 256 \
     -ctk q8_0 \
     -ctv q8_0 \
-    --temp 1.0 \
+    --temp <0.6 or 1.0> \
     --top-p 0.95 \
-    --top-k 40 \
-    --min-p 0.01
+    --top-k <20 or 40> \
+    --min-p <0.0 or 0.01>
 ```
 
 | Optimization | Purpose | Details |
@@ -123,6 +145,7 @@ llama-server \
 | **Vision GPU Offload** | Fast prompt processing | Projector is offloaded to GPU when available. |
 | **KV Quantization** | VRAM Efficiency | `-ctk q8_0 -ctv q8_0` saves significant memory. |
 | **Context Fitting** | Dynamic Offloading | Uses `--fit-target 256` for text models and `1536` for vision models. |
+| **Dynamic Sampling** | Task Optimization | Automatically switches between Coder-Next and 3.5-Thinking parameters. |
 | **MoE Support** | Architecture Tuning | Specific handling for Mixture-of-Experts (Qwen MoE). |
 
 ## Project Structure

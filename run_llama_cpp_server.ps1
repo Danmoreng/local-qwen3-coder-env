@@ -71,6 +71,23 @@ if ($MMPROJ_FILENAME -ne "NONE") {
 # Row-major speedup
 $Env:LLAMA_SET_ROWS = '1'
 
+# Sampling Parameters based on model series
+$Temp    = '1.0'
+$TopP    = '0.95'
+$TopK    = '40'
+$MinP    = '0.01'
+$PresPen = '0.0'
+
+if ($MODEL_NAME -like "*Qwen3.5*") {
+    # Optimized for "Thinking Mode: Precise Coding"
+    $Temp    = '0.6'
+    $TopK    = '20'
+    $MinP    = '0.0'
+    Write-Host "-> Qwen 3.5 detected. Applying 'Thinking: Precise Coding' sampling parameters."
+} else {
+    Write-Host "-> Qwen 3 Coder detected. Applying standard coding sampling parameters."
+}
+
 # Recommended parameters
 $Args = @('--model', $ModelFile)
 $Args += $MmprojArg
@@ -85,10 +102,13 @@ $Args += @(
     '-ub',                 '256',
     '-ctk',                'q8_0',
     '-ctv',                'q8_0',
-    '--temp',              '1.0',
-    '--top-p',             '0.95',
-    '--top-k',             '40',
-    '--min-p',             '0.01'
+    '--temp',              $Temp,
+    '--top-p',             $TopP,
+    '--top-k',             $TopK,
+    '--min-p',             $MinP,
+    '--presence-penalty',  $PresPen,
+    '--top-k',             $TopK,
+    '--min-p',             $MinP
 )
 
 Write-Host "→ Starting llama-server for $MODEL_NAME on http://localhost:8080 ..."
