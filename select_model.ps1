@@ -49,6 +49,7 @@ for ($i = 0; $i -lt $AllOptions.Count; $i++) {
 Write-Host "------------------------------------------"
 
 $choice = Read-Host "Selection [1-$($AllOptions.Count)]"
+$index = 0
 if ([int]::TryParse($choice, [ref]$index)) { $index -= 1 } else { $index = -1 }
 
 if ($index -ge 0 -and $index -lt $AllOptions.Count) {
