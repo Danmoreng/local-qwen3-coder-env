@@ -11,7 +11,7 @@ KNOWN_MODELS=(
     "Qwen3-Coder-Next (80B MoE) - MXFP4|https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-MXFP4_MOE.gguf|unsloth/Qwen3-Coder-Next-MXFP4|65536|Qwen3-Coder-Next-MXFP4_MOE.gguf|NONE|NONE|1"
     "Qwen3.5-27B (Dense) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/Qwen3.5-27B-Q4_K_M.gguf|unsloth/Qwen3.5-27B|32768|Qwen3.5-27B-Q4_K_M.gguf|https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-27B.gguf|1"
     "Qwen3.5-35B-A3B (MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf|unsloth/Qwen3.5-35B-A3B|32768|Qwen3.5-35B-A3B-Q4_K_M.gguf|https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-35B.gguf|1"
-    "Qwen3.5-122B-A10B (MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M|unsloth/Qwen3.5-122B-A10B|32768|Qwen3.5-122B-A10B-Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-122B.gguf|2"
+    "Qwen3.5-122B-A10B (MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M|unsloth/Qwen3.5-122B-A10B|32768|Qwen3.5-122B-A10B-Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-122B.gguf|3"
 )
 
 # 2. Collect All Final Options
