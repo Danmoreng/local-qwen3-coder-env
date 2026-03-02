@@ -13,6 +13,7 @@
 .vs/
 *.suo
 *.user
-*.sln.docstatesmodel_config.json
+*.sln.docstates
+model_config.json
 .model_config
 .model_config.ps1
