@@ -6,7 +6,7 @@
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $ServerExe  = Join-Path $ScriptRoot 'vendor\llama.cpp\build\bin\llama-server.exe'
-$ConfigFile = Join-Path $ScriptRoot ".model_config.ps1"
+$ConfigFile = Join-Path $ScriptRoot "model_config.json"
 $ModelDir   = Join-Path $ScriptRoot 'models'
 
 if (-not (Test-Path $ServerExe)) {
@@ -18,8 +18,16 @@ if (-not (Test-Path $ConfigFile)) {
     & (Join-Path $ScriptRoot "select_model.ps1")
 }
 
-# Load Configuration
-. $ConfigFile
+# Load Configuration (JSON)
+$Config = Get-Content -Raw $ConfigFile | ConvertFrom-Json
+$MODEL_NAME     = $Config.MODEL_NAME
+$MODEL_URL      = $Config.MODEL_URL
+$MODEL_ALIAS    = $Config.MODEL_ALIAS
+$MODEL_CTX      = $Config.MODEL_CTX
+$MODEL_FILENAME = $Config.MODEL_FILENAME
+$MMPROJ_URL     = $Config.MMPROJ_URL
+$MMPROJ_FILENAME= $Config.MMPROJ_FILENAME
+$MODEL_SHARDS   = $Config.MODEL_SHARDS
 
 function Download-File {
     param([string]$Url, [string]$Destination, [string]$Label)

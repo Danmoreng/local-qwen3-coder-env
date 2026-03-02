@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 SERVER_EXE="$SCRIPT_DIR/vendor/llama.cpp/build/bin/llama-server"
 MODEL_DIR="$SCRIPT_DIR/models"
-CONFIG_FILE="$SCRIPT_DIR/.model_config"
+CONFIG_FILE="$SCRIPT_DIR/model_config.json"
 
 # Check for executable
 if [ ! -f "$SERVER_EXE" ]; then
@@ -23,7 +23,20 @@ if [ ! -f "$CONFIG_FILE" ]; then
     "$SCRIPT_DIR/select_model.sh"
 fi
 
-source "$CONFIG_FILE"
+# Simple JSON parser helper
+get_json_val() {
+    local key=$1
+    grep -Po '"'$key'":\s*(?:"([^"]*)"|(\d+))' "$CONFIG_FILE" | sed -r 's/"'$key'":\s*//;s/"//g'
+}
+
+MODEL_NAME=$(get_json_val "MODEL_NAME")
+MODEL_URL=$(get_json_val "MODEL_URL")
+MODEL_ALIAS=$(get_json_val "MODEL_ALIAS")
+MODEL_CTX=$(get_json_val "MODEL_CTX")
+MODEL_FILENAME=$(get_json_val "MODEL_FILENAME")
+MMPROJ_URL=$(get_json_val "MMPROJ_URL")
+MMPROJ_FILENAME=$(get_json_val "MMPROJ_FILENAME")
+MODEL_SHARDS=$(get_json_val "MODEL_SHARDS")
 
 # Helper to download
 download_file() {

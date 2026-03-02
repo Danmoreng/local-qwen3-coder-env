@@ -1,17 +1,28 @@
 #!/bin/bash
-
 # run_qwen_agent.sh
-# ------------------
+# -----------------
 # Launches the qwen-code CLI configured to talk to the local llama-server.
-# Ensure run_llama_cpp_server.sh is running!
 
-export OPENAI_API_KEY="sk-no-key-required"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+CONFIG_FILE="$SCRIPT_DIR/model_config.json"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    "$SCRIPT_DIR/select_model.sh"
+fi
+
+# Simple JSON parser helper
+get_json_val() {
+    local key=$1
+    grep -Po '"'$key'":\s*(?:"([^"]*)"|(\d+))' "$CONFIG_FILE" | sed -r 's/"'$key'":\s*//;s/"//g'
+}
+
+MODEL_ALIAS=$(get_json_val "MODEL_ALIAS")
+
 export OPENAI_BASE_URL="http://localhost:8080/v1"
-export OPENAI_MODEL="unsloth/Qwen3-Coder-Next"
+export OPENAI_API_KEY="sk-no-key-required"
+export OPENAI_MODEL="$MODEL_ALIAS"
 
-echo "-> Connecting to Qwen3-Coder-Next at $OPENAI_BASE_URL..."
-echo "-> Ensure 'run_llama_cpp_server.sh' is running in another terminal."
-echo ""
+echo "-> Connecting to $OPENAI_MODEL at $OPENAI_BASE_URL..."
 
 if command -v qwen >/dev/null 2>&1; then
     qwen

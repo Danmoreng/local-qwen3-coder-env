@@ -5,11 +5,21 @@
     Ensure run_llama_cpp_server.ps1 is running!
 #>
 
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ConfigFile = Join-Path $ScriptRoot "model_config.json"
+
+if (-not (Test-Path $ConfigFile)) {
+    & (Join-Path $ScriptRoot "select_model.ps1")
+}
+
+$Config = Get-Content -Raw $ConfigFile | ConvertFrom-Json
+$MODEL_ALIAS = $Config.MODEL_ALIAS
+
 $env:OPENAI_API_KEY = "sk-no-key-required"
 $env:OPENAI_BASE_URL = "http://localhost:8080/v1"
-$env:OPENAI_MODEL = "unsloth/Qwen3-Coder-Next"
+$env:OPENAI_MODEL = "$MODEL_ALIAS"
 
-Write-Host "→ Connecting to Qwen3-Coder-Next at $env:OPENAI_BASE_URL..."
+Write-Host "→ Connecting to $env:OPENAI_MODEL at $env:OPENAI_BASE_URL..."
 Write-Host "→ Ensure 'run_llama_cpp_server.ps1' is running in another window."
 Write-Host ""
 
