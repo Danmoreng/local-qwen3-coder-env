@@ -2,15 +2,17 @@
 
 MODEL_DIR="models"
 mkdir -p "$MODEL_DIR"
+CONFIG_FILE="model_config.json"
 
 # 1. Define Known/Remote Models
 # Format: "Display Name|URL|Alias|Context|Filename|MMPROJ_URL|MMPROJ_FILENAME|SHARDS"
-# For shards: Filename should be the base name without the shard suffix (e.g. -00001-of-00003.gguf)
 KNOWN_MODELS=(
+    "Qwen3.5-35B-A3B (MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf|unsloth/Qwen3.5-35B-A3B|32768|Qwen3.5-35B-A3B-Q4_K_M.gguf|https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-35B.gguf|1"
     "Qwen3-Coder-Next (80B MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-Q4_K_M.gguf|unsloth/Qwen3-Coder-Next|32768|Qwen3-Coder-Next-Q4_K_M.gguf|NONE|NONE|1"
     "Qwen3-Coder-Next (80B MoE) - MXFP4|https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-MXFP4_MOE.gguf|unsloth/Qwen3-Coder-Next-MXFP4|65536|Qwen3-Coder-Next-MXFP4_MOE.gguf|NONE|NONE|1"
+    "Qwen3.5-4B (Dense) - Q8_0|https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q8_0.gguf|unsloth/Qwen3.5-4B-Q8_0|32768|Qwen3.5-4B-Q8_0.gguf|https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-4B.gguf|1"
+    "Qwen3.5-9B (Dense) - Q8_0|https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q8_0.gguf|unsloth/Qwen3.5-9B-Q8_0|32768|Qwen3.5-9B-Q8_0.gguf|https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-9B.gguf|1"
     "Qwen3.5-27B (Dense) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/Qwen3.5-27B-Q4_K_M.gguf|unsloth/Qwen3.5-27B|32768|Qwen3.5-27B-Q4_K_M.gguf|https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-27B.gguf|1"
-    "Qwen3.5-35B-A3B (MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf|unsloth/Qwen3.5-35B-A3B|32768|Qwen3.5-35B-A3B-Q4_K_M.gguf|https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-35B.gguf|1"
     "Qwen3.5-122B-A10B (MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M|unsloth/Qwen3.5-122B-A10B|32768|Qwen3.5-122B-A10B-Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-122B.gguf|3"
 )
 
@@ -55,7 +57,8 @@ for i in "${!ALL_OPTIONS[@]}"; do
 done
 echo "------------------------------------------"
 
-read -p "Selection [1-${#ALL_OPTIONS[@]}]: " choice
+read -p "Selection [1-${#ALL_OPTIONS[@]}, default 1]: " choice
+[ -z "$choice" ] && choice=1
 
 if [[ $choice -ge 1 && $choice -le ${#ALL_OPTIONS[@]} ]]; then
     SELECTED="${ALL_OPTIONS[$((choice-1))]}"
@@ -78,18 +81,20 @@ if [[ $choice -ge 1 && $choice -le ${#ALL_OPTIONS[@]} ]]; then
         fi
     fi
 
-    cat <<EOF > .model_config
-MODEL_NAME="$name"
-MODEL_URL="$url"
-MODEL_ALIAS="$alias"
-MODEL_CTX="$ctx"
-MODEL_FILENAME="$filename"
-MMPROJ_URL="$mmproj_url"
-MMPROJ_FILENAME="$mmproj_filename"
-MODEL_SHARDS="$shards"
+    cat <<EOF > "$CONFIG_FILE"
+{
+  "MODEL_NAME": "$name",
+  "MODEL_URL": "$url",
+  "MODEL_ALIAS": "$alias",
+  "MODEL_CTX": $ctx,
+  "MODEL_FILENAME": "$filename",
+  "MMPROJ_URL": "$mmproj_url",
+  "MMPROJ_FILENAME": "$mmproj_filename",
+  "MODEL_SHARDS": $shards
+}
 EOF
     echo "Selected: $name"
-    echo "Config saved to .model_config"
+    echo "Config saved to $CONFIG_FILE"
 else
     echo "Invalid selection."
     exit 1

@@ -1,7 +1,7 @@
 <# select_model.ps1 #>
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $ModelDir   = Join-Path $ScriptRoot "models"
-$ConfigFile = Join-Path $ScriptRoot ".model_config.ps1"
+$ConfigFile = Join-Path $ScriptRoot "model_config.json"
 
 if (-not (Test-Path $ModelDir)) {
     New-Item -ItemType Directory -Path $ModelDir -Force | Out-Null
@@ -9,10 +9,12 @@ if (-not (Test-Path $ModelDir)) {
 
 # 1. Define Known Models
 $KnownModels = @(
+    @{ Name = "Qwen3.5-35B-A3B (MoE) - Q4_K_M";      Url = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf";      Alias = "unsloth/Qwen3.5-35B-A3B";      Ctx = 32768; Filename = "Qwen3.5-35B-A3B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-35B.gguf"; Shards = 1 },
     @{ Name = "Qwen3-Coder-Next (80B MoE) - Q4_K_M";  Url = "https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-Q4_K_M.gguf";  Alias = "unsloth/Qwen3-Coder-Next"; Ctx = 32768; Filename = "Qwen3-Coder-Next-Q4_K_M.gguf"; MmprojUrl = "NONE"; MmprojFilename = "NONE"; Shards = 1 },
     @{ Name = "Qwen3-Coder-Next (80B MoE) - MXFP4";   Url = "https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-MXFP4_MOE.gguf";   Alias = "unsloth/Qwen3-Coder-Next-MXFP4";   Ctx = 65536; Filename = "Qwen3-Coder-Next-MXFP4_MOE.gguf"; MmprojUrl = "NONE"; MmprojFilename = "NONE"; Shards = 1 },
+    @{ Name = "Qwen3.5-4B (Dense) - Q8_0";           Url = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q8_0.gguf";           Alias = "unsloth/Qwen3.5-4B-Q8_0";           Ctx = 32768; Filename = "Qwen3.5-4B-Q8_0.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-4B.gguf"; Shards = 1 },
+    @{ Name = "Qwen3.5-9B (Dense) - Q8_0";           Url = "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q8_0.gguf";           Alias = "unsloth/Qwen3.5-9B-Q8_0";           Ctx = 32768; Filename = "Qwen3.5-9B-Q8_0.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-9B.gguf"; Shards = 1 },
     @{ Name = "Qwen3.5-27B (Dense) - Q4_K_M";        Url = "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/Qwen3.5-27B-Q4_K_M.gguf";        Alias = "unsloth/Qwen3.5-27B";        Ctx = 32768; Filename = "Qwen3.5-27B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-27B.gguf"; Shards = 1 },
-    @{ Name = "Qwen3.5-35B-A3B (MoE) - Q4_K_M";      Url = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf";      Alias = "unsloth/Qwen3.5-35B-A3B";      Ctx = 32768; Filename = "Qwen3.5-35B-A3B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-35B.gguf"; Shards = 1 },
     @{ Name = "Qwen3.5-122B-A10B (MoE) - Q4_K_M";    Url = "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M"; Alias = "unsloth/Qwen3.5-122B-A10B"; Ctx = 32768; Filename = "Qwen3.5-122B-A10B-Q4_K_M"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-122B.gguf"; Shards = 3 }
 )
 
@@ -48,7 +50,8 @@ for ($i = 0; $i -lt $AllOptions.Count; $i++) {
 }
 Write-Host "------------------------------------------"
 
-$choice = Read-Host "Selection [1-$($AllOptions.Count)]"
+$choice = Read-Host "Selection [1-$($AllOptions.Count), default 1]"
+if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "1" }
 $index = 0
 if ([int]::TryParse($choice, [ref]$index)) { $index -= 1 } else { $index = -1 }
 
@@ -56,7 +59,7 @@ if ($index -ge 0 -and $index -lt $AllOptions.Count) {
     $Selected = $AllOptions[$index]
     if ($Selected.Url -eq "NONE") {
         $userCtx = Read-Host "Enter context size for $($Selected.Filename) [default $($Selected.Ctx)]"
-        if (-not [string]::IsNullOrWhiteSpace($userCtx)) { $Selected.Ctx = $userCtx }
+        if (-not [string]::IsNullOrWhiteSpace($userCtx)) { $Selected.Ctx = [int]$userCtx }
         $hasMmproj = Read-Host "Does this model need a vision projector (mmproj)? [y/N]"
         if ($hasMmproj -match "y") {
             $userMmproj = Read-Host "Enter mmproj URL (or filename in models/)"
@@ -67,17 +70,7 @@ if ($index -ge 0 -and $index -lt $AllOptions.Count) {
         }
     }
 
-    $ConfigContent = @"
-`$MODEL_NAME = '$($Selected.Name)'
-`$MODEL_URL  = '$($Selected.Url)'
-`$MODEL_ALIAS = '$($Selected.Alias)'
-`$MODEL_CTX  = $($Selected.Ctx)
-`$MODEL_FILENAME = '$($Selected.Filename)'
-`$MMPROJ_URL = '$($Selected.MmprojUrl)'
-`$MMPROJ_FILENAME = '$($Selected.MmprojFilename)'
-`$MODEL_SHARDS = $($Selected.Shards)
-"@
-    Set-Content -Path $ConfigFile -Value $ConfigContent
+    $Selected | ConvertTo-Json | Set-Content -Path $ConfigFile
     Write-Host "Selected: $($Selected.Name)"
-    Write-Host "Config saved to .model_config.ps1"
+    Write-Host "Config saved to $ConfigFile"
 } else { Write-Error "Invalid selection."; exit 1 }

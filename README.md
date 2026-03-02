@@ -4,7 +4,7 @@ A streamlined environment for running **Qwen3-Coder** and **Qwen3.5** models loc
 
 ## Features
 
-- **Modular Model Selection**: Choose between various Qwen3-Coder and Qwen3.5 variants (27B, 35B MoE, 80B MoE, 122B MoE).
+- **Modular Model Selection**: Choose between various Qwen3-Coder and Qwen3.5 variants (4B, 9B, 27B, 35B MoE, 80B MoE, 122B MoE).
 - **Vision Model Support**: Full multimodal support for the **Qwen 3.5** family. The environment automatically manages the necessary vision projectors (`mmproj`).
 - **Auto-Detection**: Automatically detects any `.gguf` files placed in the `models/` directory.
 - **Optimized Performance**: Pre-configured with flags for Flash Attention, KV-cache quantization, and MoE-specific optimizations.
