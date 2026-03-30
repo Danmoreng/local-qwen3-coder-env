@@ -51,11 +51,21 @@ function Download-File {
     
     New-Item -ItemType Directory -Path (Split-Path $Destination) -Force | Out-Null
     Write-Host "-> downloading $Label : $Url"
-    if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
-        Start-BitsTransfer -Source $Url -Destination $Destination
+
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if ($null -ne $curl) {
+        & $curl.Source -L --fail --retry 5 --retry-delay 5 --output $Destination $Url
+        if ($LASTEXITCODE -ne 0) {
+            throw "Download failed for $Label from '$Url' (curl exit code $LASTEXITCODE)."
+        }
     } else {
-        Invoke-WebRequest -Uri $Url -OutFile $Destination
+        Invoke-WebRequest -Uri $Url -OutFile $Destination -ErrorAction Stop
     }
+
+    if (-not (Test-Path $Destination)) {
+        throw "Download failed for $Label. File was not created at '$Destination'."
+    }
+
     Write-Host "[OK] Download complete."
     return $true
 }
@@ -126,9 +136,7 @@ $Args += @(
     '--top-p',             $TopP,
     '--top-k',             $TopK,
     '--min-p',             $MinP,
-    '--presence-penalty',  $PresPen,
-    '--top-k',             $TopK,
-    '--min-p',             $MinP
+    '--presence-penalty',  $PresPen
 )
 
 Write-Host "-> Starting llama-server for $MODEL_NAME on http://localhost:8080 ..."
