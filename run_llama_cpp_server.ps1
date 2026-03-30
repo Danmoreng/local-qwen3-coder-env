@@ -1,7 +1,7 @@
 <#  run_llama_cpp_server.ps1  PowerShell 5/7
     ----------------------------------------------------------
-    • Manages model selection and download (supports shards)
-    • Launches llama-server.exe from llama.cpp with optimized settings
+    - Manages model selection and download (supports shards)
+    - Launches llama-server.exe from llama.cpp with optimized settings
 #>
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -9,8 +9,20 @@ $ServerExe  = Join-Path $ScriptRoot 'vendor\llama.cpp\build\bin\llama-server.exe
 $ConfigFile = Join-Path $ScriptRoot "model_config.json"
 $ModelDir   = Join-Path $ScriptRoot 'models'
 
+function Get-ConfigValue {
+    param(
+        [Parameter(Mandatory = $true)]$Config,
+        [Parameter(Mandatory = $true)][string]$Primary,
+        [Parameter(Mandatory = $true)][string]$Fallback
+    )
+
+    $value = $Config.$Primary
+    if ($null -ne $value -and $value -ne '') { return $value }
+    return $Config.$Fallback
+}
+
 if (-not (Test-Path $ServerExe)) {
-    throw "llama-server.exe not found at '$ServerExe' – please run install_llama_cpp.ps1 first."
+    throw "llama-server.exe not found at '$ServerExe' - please run install_llama_cpp.ps1 first."
 }
 
 # Ensure model is selected
@@ -20,25 +32,25 @@ if (-not (Test-Path $ConfigFile)) {
 
 # Load Configuration (JSON)
 $Config = Get-Content -Raw $ConfigFile | ConvertFrom-Json
-$MODEL_NAME     = $Config.MODEL_NAME
-$MODEL_URL      = $Config.MODEL_URL
-$MODEL_ALIAS    = $Config.MODEL_ALIAS
-$MODEL_CTX      = $Config.MODEL_CTX
-$MODEL_FILENAME = $Config.MODEL_FILENAME
-$MMPROJ_URL     = $Config.MMPROJ_URL
-$MMPROJ_FILENAME= $Config.MMPROJ_FILENAME
-$MODEL_SHARDS   = $Config.MODEL_SHARDS
+$MODEL_NAME      = Get-ConfigValue -Config $Config -Primary 'MODEL_NAME' -Fallback 'Name'
+$MODEL_URL       = Get-ConfigValue -Config $Config -Primary 'MODEL_URL' -Fallback 'Url'
+$MODEL_ALIAS     = Get-ConfigValue -Config $Config -Primary 'MODEL_ALIAS' -Fallback 'Alias'
+$MODEL_CTX       = Get-ConfigValue -Config $Config -Primary 'MODEL_CTX' -Fallback 'Ctx'
+$MODEL_FILENAME  = Get-ConfigValue -Config $Config -Primary 'MODEL_FILENAME' -Fallback 'Filename'
+$MMPROJ_URL      = Get-ConfigValue -Config $Config -Primary 'MMPROJ_URL' -Fallback 'MmprojUrl'
+$MMPROJ_FILENAME = Get-ConfigValue -Config $Config -Primary 'MMPROJ_FILENAME' -Fallback 'MmprojFilename'
+$MODEL_SHARDS    = Get-ConfigValue -Config $Config -Primary 'MODEL_SHARDS' -Fallback 'Shards'
 
 function Download-File {
     param([string]$Url, [string]$Destination, [string]$Label)
     if (Test-Path $Destination) {
-        Write-Host "[OK] $Label found → $Destination"
+        Write-Host "[OK] $Label found -> $Destination"
         return $true
     }
     if ($Url -eq "NONE" -or $Url -eq "LOCAL") { return $false }
     
     New-Item -ItemType Directory -Path (Split-Path $Destination) -Force | Out-Null
-    Write-Host "→ downloading $Label : $Url"
+    Write-Host "-> downloading $Label : $Url"
     if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
         Start-BitsTransfer -Source $Url -Destination $Destination
     } else {
@@ -119,5 +131,5 @@ $Args += @(
     '--min-p',             $MinP
 )
 
-Write-Host "→ Starting llama-server for $MODEL_NAME on http://localhost:8080 ..."
+Write-Host "-> Starting llama-server for $MODEL_NAME on http://localhost:8080 ..."
 Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -Wait
