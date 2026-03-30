@@ -70,7 +70,18 @@ if ($index -ge 0 -and $index -lt $AllOptions.Count) {
         }
     }
 
-    $Selected | ConvertTo-Json | Set-Content -Path $ConfigFile
+    $Config = [pscustomobject]@{
+        MODEL_NAME       = $Selected.Name
+        MODEL_URL        = $Selected.Url
+        MODEL_ALIAS      = $Selected.Alias
+        MODEL_CTX        = $Selected.Ctx
+        MODEL_FILENAME   = $Selected.Filename
+        MMPROJ_URL       = $Selected.MmprojUrl
+        MMPROJ_FILENAME  = $Selected.MmprojFilename
+        MODEL_SHARDS     = $Selected.Shards
+    }
+
+    $Config | ConvertTo-Json | Set-Content -Path $ConfigFile
     Write-Host "Selected: $($Selected.Name)"
     Write-Host "Config saved to $ConfigFile"
 } else { Write-Error "Invalid selection."; exit 1 }

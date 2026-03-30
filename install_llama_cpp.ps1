@@ -3,10 +3,10 @@
     --------------------
     Installs all prerequisites and builds ggerganov/llama.cpp on Windows.
 
-    • Works on Windows PowerShell 7
-    • Uses the Ninja generator (fast, no VS-integration dependency)
-    • Re-usable: just run the script; it installs only what is missing
-    • Pass -CudaArch <SM> to target a different GPU
+    - Works on Windows PowerShell 7
+    - Uses the Ninja generator (fast, no VS-integration dependency)
+    - Re-usable: just run the script; it installs only what is missing
+    - Pass -CudaArch <SM> to target a different GPU
       (89 = Ada; GTX-1070 = 61, RTX-30-series = 86, etc.)
 #>
 
@@ -495,16 +495,16 @@ $PreferCudaVersion = $null
 
 if ($DetectedSm) {
     if ($DetectedSm -lt 70) {
-        Write-Host "-> GPU detected: sm_$DetectedSm (pre-Turing) – selecting CUDA 12.4 for compatibility."
+        Write-Host "-> GPU detected: sm_$DetectedSm (pre-Turing) - selecting CUDA 12.4 for compatibility."
         $cudaReq.Name    = 'CUDA Toolkit 12.4'
         $cudaReq.Version = '12.4.1'
         $cudaReq.Test    = { Test-CUDAExact -MajorMinor '12.4' }
         $PreferCudaVersion = [version]'12.4'
     } else {
-        Write-Host "-> GPU detected: sm_$DetectedSm – selecting latest CUDA."
+        Write-Host "-> GPU detected: sm_$DetectedSm - selecting latest CUDA."
     }
 } else {
-    Write-Host "-> GPU SM could not be determined pre-install – selecting latest CUDA."
+    Write-Host "-> GPU SM could not be determined pre-install - selecting latest CUDA."
 }
 
 $reqs += $cudaReq
@@ -561,7 +561,7 @@ if (-not (Test-Command ninja)) {
 
 Import-VSEnv   # make cl.exe etc. available in this session
 
-if ($SkipBuild) { Write-Host 'SkipBuild set – done.'; return }
+if ($SkipBuild) { Write-Host 'SkipBuild set - done.'; return }
 
 if ($PreferCudaVersion) {
     $hasExact = Get-CudaInstalls | Where-Object {
