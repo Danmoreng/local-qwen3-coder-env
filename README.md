@@ -2,6 +2,8 @@
 
 A streamlined environment for running **Qwen3-Coder** and **Qwen3.5** models locally with high performance. This project automates the setup, building, and serving of GGUF models using `llama.cpp`, providing a ready-to-use coding assistant.
 
+If you only want a focused `llama.cpp` source build/install flow (without Qwen-specific model/agent setup), use the simpler companion repo: [Danmoreng/llama.cpp-installer](https://github.com/Danmoreng/llama.cpp-installer).
+
 ## Features
 
 - **Modular Model Selection**: Choose between various Qwen3-Coder and Qwen3.5 variants (4B, 9B, 27B, 35B MoE, 80B MoE, 122B MoE).
@@ -27,7 +29,7 @@ The installation scripts (`install_llama_cpp.sh` and `install_llama_cpp.ps1`) at
 - **Git**, **CMake**, **Ninja**
 - **Node.js** (v24.13.0) & **npm**
 - **Visual Studio 2022 Build Tools** (C++ Workload & Windows SDK)
-- **CUDA Toolkit** (12.4.1 Toolkit only, avoids driver/GFE bloat)
+- **CUDA Toolkit** (selected automatically based on GPU compatibility: pre-Turing pins to 12.4, Blackwell prefers 12.8+, otherwise latest compatible)
 - **qwen-code** CLI (installed via npm)
 
 ---
