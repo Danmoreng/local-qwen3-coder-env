@@ -81,6 +81,51 @@ function Get-CudaInstalls {
     $out
 }
 
+function Get-CudaVersionKey {
+    param([Parameter(Mandatory = $true)][version]$Version)
+    [version]::new($Version.Major, $Version.Minor)
+}
+
+function Test-CudaVersionCompatible {
+    param(
+        [Parameter(Mandatory = $true)][version]$Version,
+        [version]$Min = [version]'12.4',
+        [version]$Max = $null,
+        [version]$Pinned = $null
+    )
+
+    $key = Get-CudaVersionKey -Version $Version
+
+    if ($Pinned) {
+        $pinnedKey = Get-CudaVersionKey -Version $Pinned
+        return $key.Major -eq $pinnedKey.Major -and $key.Minor -eq $pinnedKey.Minor
+    }
+
+    $minKey = Get-CudaVersionKey -Version $Min
+    if ($key -lt $minKey) { return $false }
+
+    if ($Max) {
+        $maxKey = Get-CudaVersionKey -Version $Max
+        if ($key -gt $maxKey) { return $false }
+    }
+
+    return $true
+}
+
+function Get-CompatibleCudaInstalls {
+    param(
+        [version]$Min = [version]'12.4',
+        [version]$Max = $null,
+        [version]$Pinned = $null
+    )
+
+    Get-CudaInstalls |
+        Sort-Object Version -Descending |
+        Where-Object {
+            Test-CudaVersionCompatible -Version $_.Version -Min $Min -Max $Max -Pinned $Pinned
+        }
+}
+
 function Test-CUDA {
     $min = [version]'12.4'
     $installs = Get-CudaInstalls
@@ -132,6 +177,99 @@ function Install-CUDA124-FromNVIDIA {
     Write-Host "[OK] CUDA 12.4.1 (nvcc present)"
 }
 
+function Get-InstallableCudaVersions {
+    if (-not (Test-Command winget)) { return @() }
+
+    try {
+        $out = & winget show --id Nvidia.CUDA --exact --versions --source winget --accept-source-agreements --disable-interactivity 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $out) { return @() }
+
+        $versions = foreach ($line in $out) {
+            if ($line -match '^\s*(\d+\.\d+(?:\.\d+)?)\s*$') {
+                try {
+                    [version]$Matches[1]
+                } catch {
+                }
+            }
+        }
+
+        $versions | Sort-Object -Descending -Unique
+    } catch {
+        @()
+    }
+}
+
+function Get-LatestCompatibleInstallableCudaVersion {
+    param(
+        [version]$Min = [version]'12.4',
+        [version]$Max = $null,
+        [version]$Pinned = $null
+    )
+
+    Get-InstallableCudaVersions |
+        Where-Object {
+            Test-CudaVersionCompatible -Version $_ -Min $Min -Max $Max -Pinned $Pinned
+        } |
+        Select-Object -First 1
+}
+
+function Should-InstallNewerCuda {
+    param(
+        [Parameter(Mandatory = $true)][version]$InstalledVersion,
+        [Parameter(Mandatory = $true)][version]$AvailableVersion
+    )
+
+    $installedKey = Get-CudaVersionKey -Version $InstalledVersion
+    $availableKey = Get-CudaVersionKey -Version $AvailableVersion
+
+    if ($availableKey -le $installedKey) { return $false }
+
+    try {
+        Write-Host ""
+        Write-Host ("A newer compatible CUDA toolkit is installable: {0} installed, {1} available." -f $InstalledVersion.ToString(), $AvailableVersion.ToString()) -ForegroundColor Yellow
+        Write-Host "Press Enter to keep the existing CUDA install, or type 'U' to install the newer compatible version." -ForegroundColor Yellow
+        $reply = Read-Host 'CUDA choice'
+        return $reply -match '^(u|upgrade|y|yes)$'
+    } catch {
+        Write-Warning "Could not prompt for CUDA upgrade choice. Keeping the existing installation."
+        return $false
+    }
+}
+
+function Install-CudaToolkitVersion {
+    param([Parameter(Mandatory = $true)][version]$Version)
+
+    $versionText = $Version.ToString()
+    $versionKey = Get-CudaVersionKey -Version $Version
+
+    if ($versionKey -eq [version]'12.4') {
+        try {
+            Install-Winget -Id 'Nvidia.CUDA' -Version $versionText
+        } catch {
+            Write-Warning ("winget path failed for CUDA {0}: {1}" -f $versionText, $_.Exception.Message)
+            Install-CUDA124-FromNVIDIA
+        }
+
+        if (-not (Test-CUDAExact -MajorMinor '12.4')) {
+            $have = ((Get-CudaInstalls).Version | ForEach-Object { $_.ToString(2) }) -join ', '
+            throw "CUDA 12.4 did not get installed. Installed versions: $have"
+        }
+        return
+    }
+
+    Install-Winget -Id 'Nvidia.CUDA' -Version $versionText
+    Refresh-Env
+
+    $installed = Get-CudaInstalls | Where-Object {
+        (Get-CudaVersionKey -Version $_.Version) -eq $versionKey
+    } | Select-Object -First 1
+
+    if (-not $installed) {
+        $have = ((Get-CudaInstalls).Version | ForEach-Object { $_.ToString(2) }) -join ', '
+        throw "CUDA $versionText did not get installed. Installed versions: $have"
+    }
+}
+
 
 
 function Wait-Until ($TestFn, [int]$TimeoutMin, [string]$What) {
@@ -181,6 +319,13 @@ function Add-ToMachinePath([string]$Dir) {
     $new = ($parts + $Dir) -join ';'
     Set-ItemProperty -Path $regPath -Name Path -Value $new
 }
+
+function Assert-LastExitCode([string]$What) {
+    if ($LASTEXITCODE -ne 0) {
+        throw "$What failed with exit code $LASTEXITCODE."
+    }
+}
+
 
 # Run winget non-interactively, force community source, and redirect output to a log
 function Install-Winget {
@@ -322,23 +467,60 @@ function Install-NinjaPortable {
     Write-Host "[OK] Ninja"
 }
 
+# If the selected CUDA toolkit changed since the last configure, clear the cache
+# so CMake picks up the matching nvcc/compiler settings for the new toolkit.
+function Reset-CMakeCacheIfCudaChanged {
+    param(
+        [Parameter(Mandatory = $true)][string]$BuildDir,
+        [Parameter(Mandatory = $true)][string]$CudaRoot
+    )
+
+    $cachePath = Join-Path $BuildDir 'CMakeCache.txt'
+    if (-not (Test-Path $cachePath)) { return }
+
+    $cacheText = Get-Content $cachePath -Raw
+    $expectedRoot = $CudaRoot.Replace('\', '/')
+    $expectedNvcc = (Join-Path $CudaRoot 'bin\nvcc.exe').Replace('\', '/')
+    $configuredForRoot = $cacheText -match [regex]::Escape($expectedRoot)
+    $configuredForNvcc = $cacheText -match [regex]::Escape($expectedNvcc)
+
+    if ($configuredForRoot -or $configuredForNvcc) { return }
+
+    $resolvedBuildDir = (Resolve-Path -LiteralPath $BuildDir).Path
+    $resolvedRepoRoot = (Resolve-Path -LiteralPath (Join-Path $ScriptRoot 'vendor\llama.cpp')).Path
+    if (-not $resolvedBuildDir.StartsWith($resolvedRepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to reset CMake cache outside the vendored llama.cpp tree: $resolvedBuildDir"
+    }
+
+    Write-Host "-> CUDA toolkit changed; clearing cached CMake configuration in $resolvedBuildDir" -ForegroundColor Yellow
+    Remove-Item -LiteralPath $cachePath -Force -ErrorAction SilentlyContinue
+
+    $cacheDir = Join-Path $BuildDir 'CMakeFiles'
+    if (Test-Path $cacheDir) {
+        Remove-Item -LiteralPath $cacheDir -Recurse -Force
+    }
+}
+
 # Select newest CUDA (>=12.4), export env, return CMake arg
 function Use-LatestCuda {
-    param([version]$Min=[version]'12.4',[version]$Prefer=$null)
+    param(
+        [version]$Min = [version]'12.4',
+        [version]$Max = $null,
+        [version]$Pinned = $null
+    )
 
-    $installs = Get-CudaInstalls | Sort-Object Version -Descending
+    $installs = Get-CompatibleCudaInstalls -Min $Min -Max $Max -Pinned $Pinned
+    $pick = $installs | Select-Object -First 1
 
-    if ($Prefer) {
-        $pick = $installs | Where-Object {
-            $_.Version.Major -eq $Prefer.Major -and $_.Version.Minor -eq $Prefer.Minor
-        } | Select-Object -First 1
-        if (-not $pick) {
-            $have = ($installs.Version | ForEach-Object { $_.ToString(2) }) -join ', '
-            throw "Requested CUDA $($Prefer.ToString(2)) not found. Installed versions: $have"
+    if (-not $pick) {
+        $have = ((Get-CudaInstalls).Version | ForEach-Object { $_.ToString(2) }) -join ', '
+        if ($Pinned) {
+            throw "No CUDA version matching $($Pinned.ToString(2)) found. Installed versions: $have"
         }
-    } else {
-        $pick = $installs | Where-Object { $_.Version -ge $Min } | Select-Object -First 1
-        if (-not $pick) { throw "No CUDA installation >= $Min found." }
+        if ($Max) {
+            throw "No CUDA version between $($Min.ToString(2)) and $($Max.ToString(2)) found. Installed versions: $have"
+        }
+        throw "No CUDA version >= $($Min.ToString(2)) found. Installed versions: $have"
     }
 
     $env:CUDA_PATH = $pick.Path
@@ -491,7 +673,9 @@ $cudaReq = @{
     Id      = 'Nvidia.CUDA'
     Version = ''
 }
-$PreferCudaVersion = $null
+$RequiredCudaVersion = [version]'12.4'
+$MaxCompatibleCudaVersion = $null
+$PinnedCudaVersion = $null
 
 if ($DetectedSm) {
     if ($DetectedSm -lt 70) {
@@ -499,7 +683,14 @@ if ($DetectedSm) {
         $cudaReq.Name    = 'CUDA Toolkit 12.4'
         $cudaReq.Version = '12.4.1'
         $cudaReq.Test    = { Test-CUDAExact -MajorMinor '12.4' }
-        $PreferCudaVersion = [version]'12.4'
+        $RequiredCudaVersion = [version]'12.4'
+        $MaxCompatibleCudaVersion = [version]'12.4'
+        $PinnedCudaVersion = [version]'12.4'
+    } elseif ($DetectedSm -ge 100) {
+        Write-Host "-> GPU detected: sm_$DetectedSm (Blackwell) - selecting CUDA 12.8+ for optimal performance."
+        $cudaReq.Name    = 'CUDA Toolkit 12.8'
+        $cudaReq.Version = '12.8.0'
+        $RequiredCudaVersion = [version]'12.8'
     } else {
         Write-Host "-> GPU detected: sm_$DetectedSm - selecting latest CUDA."
     }
@@ -508,6 +699,8 @@ if ($DetectedSm) {
 }
 
 $reqs += $cudaReq
+
+$HadCompatibleCudaBeforeInstall = (Get-CompatibleCudaInstalls -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion | Select-Object -First 1) -ne $null
 
 
 # --- Install all prerequisites ---
@@ -559,22 +752,35 @@ if (-not (Test-Command ninja)) {
     Write-Host "[OK] Ninja"
 }
 
-Import-VSEnv   # make cl.exe etc. available in this session
-
 if ($SkipBuild) { Write-Host 'SkipBuild set - done.'; return }
 
-if ($PreferCudaVersion) {
-    $hasExact = Get-CudaInstalls | Where-Object {
-        $_.Version.Major -eq $PreferCudaVersion.Major -and $_.Version.Minor -eq $PreferCudaVersion.Minor
-    } | Select-Object -First 1
-    if (-not $hasExact) {
-        $have = ((Get-CudaInstalls).Version | ForEach-Object { $_.ToString(2) }) -join ', '
-        throw "CUDA $($PreferCudaVersion.ToString(2)) did not get installed. Installed versions: $have"
+if ($HadCompatibleCudaBeforeInstall) {
+    $installedCuda = Get-CompatibleCudaInstalls -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion | Select-Object -First 1
+    $availableCuda = Get-LatestCompatibleInstallableCudaVersion -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion
+
+    if ($installedCuda -and $availableCuda) {
+        if (Should-InstallNewerCuda -InstalledVersion $installedCuda.Version -AvailableVersion $availableCuda) {
+            Write-Host ("-> Installing newer compatible CUDA toolkit {0} ..." -f $availableCuda.ToString()) -ForegroundColor Cyan
+            Install-CudaToolkitVersion -Version $availableCuda
+        } else {
+            Write-Host ("-> Keeping installed CUDA toolkit {0}." -f $installedCuda.Version.ToString()) -ForegroundColor Gray
+        }
     }
 }
 
+$hasCompatible = Get-CompatibleCudaInstalls -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion | Select-Object -First 1
+if (-not $hasCompatible) {
+    $expected = if ($PinnedCudaVersion) {
+        $PinnedCudaVersion.ToString(2)
+    } else {
+        "$($RequiredCudaVersion.ToString(2)) or newer"
+    }
+    $have = ((Get-CudaInstalls).Version | ForEach-Object { $_.ToString(2) }) -join ', '
+    throw "CUDA $expected did not get installed. Installed versions: $have"
+}
+
 # --- Select CUDA toolkit and auto-detect architecture ---
-$cudaRootArg = Use-LatestCuda -Prefer $PreferCudaVersion
+$cudaRootArg = Use-LatestCuda -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion
 
 # ---------------------------------------------------------------------------
 # Clone & build ggerganov/llama.cpp
@@ -586,16 +792,19 @@ $LlamaBuild  = Join-Path $LlamaRepo  'build'
 if (-not (Test-Path $LlamaRepo)) {
     Write-Host "-> cloning upstream llama.cpp into $LlamaRepo"
     git clone https://github.com/ggerganov/llama.cpp $LlamaRepo
+    Assert-LastExitCode "git clone"
 } else {
     Write-Host "-> updating existing llama.cpp in $LlamaRepo"
     git -C $LlamaRepo pull --ff-only
+    Assert-LastExitCode "git pull"
 }
 
 git -C $LlamaRepo submodule update --init --recursive
+Assert-LastExitCode "git submodule update"
 
 # --- configure & build ------------------------------------------------------
 # Prepare CMake CUDA architectures argument
-if ($DetectedSm) { $CudaArchArg = "$DetectedSm" } else { $CudaArchArg = 'native' }
+$CudaArchArg = $DetectedSm ? "$DetectedSm" : 'native'
 if ($DetectedSm) {
     Write-Host ("-> Using detected compute capability sm_{0}" -f $DetectedSm)
 } else {
@@ -603,20 +812,28 @@ if ($DetectedSm) {
 }
 
 New-Item $LlamaBuild -ItemType Directory -Force | Out-Null
+Reset-CMakeCacheIfCudaChanged -BuildDir $LlamaBuild -CudaRoot $env:CUDA_PATH
+Import-VSEnv   # make cl.exe etc. available in this session after any env refreshes/install steps
 Push-Location $LlamaBuild
 
-Write-Host '-> generating upstream llama.cpp solution ...'
-cmake .. -G Ninja `
-    -DGGML_CUDA=ON -DGGML_CUBLAS=ON `
-    -DCMAKE_BUILD_TYPE=Release `
-    -DLLAMA_CURL=OFF `
-    -DGGML_CUDA_FA_ALL_QUANTS=ON `
-    "-DCMAKE_CUDA_ARCHITECTURES=$CudaArchArg" `
-    $cudaRootArg
+try {
+    Write-Host '-> generating upstream llama.cpp solution ...'
+    cmake .. -G Ninja `
+        -DGGML_CUDA=ON -DGGML_CUBLAS=ON `
+        -DCMAKE_BUILD_TYPE=Release `
+        -DLLAMA_CURL=OFF `
+        -DGGML_CUDA_FA_ALL_QUANTS=ON `
+        "-DCMAKE_CUDA_ARCHITECTURES=$CudaArchArg" `
+        $cudaRootArg
+    Assert-LastExitCode "cmake configure"
 
-Write-Host '-> building upstream llama.cpp tools (Release) ...'
-cmake --build . --config Release --target llama-server llama-batched-bench llama-cli llama-bench llama-fit-params --parallel
-Pop-Location
+    Write-Host '-> building upstream llama.cpp tools (Release) ...'
+    cmake --build . --config Release --target llama-server llama-batched-bench llama-cli llama-bench llama-fit-params --parallel
+    Assert-LastExitCode "cmake build"
+}
+finally {
+    Pop-Location
+}
 
 Write-Host ''
 Write-Host ("Done!  llama.cpp binaries are in: ""{0}""." -f (Join-Path $LlamaBuild 'bin'))
