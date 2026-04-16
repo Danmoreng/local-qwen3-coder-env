@@ -9,6 +9,7 @@ if (-not (Test-Path $ModelDir)) {
 
 # 1. Define Known Models
 $KnownModels = @(
+    @{ Name = "Qwen3.6-35B-A3B (MoE) - UD-Q4_K_M";   Url = "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf";   Alias = "unsloth/Qwen3.6-35B-A3B-UD-Q4_K_M";   Ctx = 32768; Filename = "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.6-35B.gguf"; Shards = 1 },
     @{ Name = "Qwen3.5-35B-A3B (MoE) - Q4_K_M";      Url = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf";      Alias = "unsloth/Qwen3.5-35B-A3B";      Ctx = 32768; Filename = "Qwen3.5-35B-A3B-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.5-35B.gguf"; Shards = 1 },
     @{ Name = "Qwen3-Coder-Next (80B MoE) - Q4_K_M";  Url = "https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-Q4_K_M.gguf";  Alias = "unsloth/Qwen3-Coder-Next"; Ctx = 32768; Filename = "Qwen3-Coder-Next-Q4_K_M.gguf"; MmprojUrl = "NONE"; MmprojFilename = "NONE"; Shards = 1 },
     @{ Name = "Qwen3-Coder-Next (80B MoE) - MXFP4";   Url = "https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-MXFP4_MOE.gguf";   Alias = "unsloth/Qwen3-Coder-Next-MXFP4";   Ctx = 65536; Filename = "Qwen3-Coder-Next-MXFP4_MOE.gguf"; MmprojUrl = "NONE"; MmprojFilename = "NONE"; Shards = 1 },
