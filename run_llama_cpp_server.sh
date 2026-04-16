@@ -104,12 +104,12 @@ TOP_P="0.95"
 TOP_K="40"
 MIN_P="0.01"
 
-if [[ "$MODEL_NAME" == *"Qwen3.5"* ]]; then
-    # Optimized for "Thinking Mode: Precise Coding"
+if [[ "$MODEL_NAME" =~ Qwen3\.(5|6) ]]; then
+    # Optimized for Qwen 3.5 / 3.6 reasoning models
     TEMP="0.6"
     TOP_K="20"
     MIN_P="0.0"
-    echo "-> Qwen 3.5 detected. Applying 'Thinking: Precise Coding' sampling parameters."
+    echo "-> Qwen 3.5 / 3.6 detected. Applying 'Thinking: Precise Coding' sampling parameters."
 else
     echo "-> Qwen 3 Coder detected. Applying standard coding sampling parameters."
 fi

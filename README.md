@@ -1,15 +1,15 @@
 # Local Qwen Environment
 
-A streamlined environment for running **Qwen3-Coder** and **Qwen3.5** models locally with high performance. This project automates the setup, building, and serving of GGUF models using `llama.cpp`, providing a ready-to-use coding assistant.
+A streamlined environment for running **Qwen3-Coder**, **Qwen3.5**, and **Qwen3.6** models locally with high performance. This project automates the setup, building, and serving of GGUF models using `llama.cpp`, providing a ready-to-use coding assistant.
 
 If you only want a focused `llama.cpp` source build/install flow (without Qwen-specific model/agent setup), use the simpler companion repo: [Danmoreng/llama.cpp-installer](https://github.com/Danmoreng/llama.cpp-installer).
 
 ## Features
 
-- **Modular Model Selection**: Choose between various Qwen3-Coder and Qwen3.5 variants (4B, 9B, 27B, 35B MoE, 80B MoE, 122B MoE).
-- **Vision Model Support**: Full multimodal support for the **Qwen 3.5** family. The environment automatically manages the necessary vision projectors (`mmproj`).
+- **Modular Model Selection**: Choose between various Qwen3-Coder, Qwen3.5, and Qwen3.6 variants, including the added **Qwen3.6 35B** preset models.
+- **Vision Model Support**: Full multimodal support for the **Qwen 3.5 / 3.6** families. The environment automatically manages the necessary vision projectors (`mmproj`).
 - **Auto-Detection**: Automatically detects any `.gguf` files placed in the `models/` directory.
-- **Optimized Performance**: Pre-configured with flags for Flash Attention, KV-cache quantization, and MoE-specific optimizations.
+- **Optimized Performance**: Pre-configured with flags for Flash Attention, KV-cache quantization, `--no-mmap`, `-ub 512`, and MoE-aware fitting defaults.
 - **Cross-Platform**: Full support for Linux (CUDA/Vulkan) and Windows (CUDA).
 
 ---
@@ -95,6 +95,14 @@ To use a custom model not listed in the presets:
 
 ---
 
+## Qwen3.6 35B Support
+
+The repo now includes preset model support and tested server defaults for **Qwen3.6 35B**.
+
+For the Windows server path, the optimized shared defaults now use `--fit on`, `--fit-target 256` for text models, `--no-mmap`, and `-ub 512`. Vision models still switch to `--fit-target 1536` when an `mmproj` is active.
+
+---
+
 ## Sampling Parameters & Modes
 
 The environment automatically adjusts sampling parameters based on the selected model to ensure optimal results for coding and reasoning tasks.
@@ -105,10 +113,10 @@ When you start the server, it detects the model type and applies these settings:
 | Model Series | Mode | Temp | Top-P | Top-K | Min-P |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Qwen 3 Coder** | **Standard Coding** | 1.0 | 0.95 | 40 | 0.01 |
-| **Qwen 3.5** | **Thinking: Precise Coding** | 0.6 | 0.95 | 20 | 0.0 |
+| **Qwen 3.5 / 3.6** | **Thinking: Precise Coding** | 0.6 | 0.95 | 20 | 0.0 |
 
-### Alternative Qwen 3.5 Recommendations
-For non-coding tasks with the **Qwen 3.5** series, you may manually adjust parameters in the server or UI:
+### Alternative Qwen 3.5 / 3.6 Recommendations
+For non-coding tasks with the **Qwen 3.5 / 3.6** series, you may manually adjust parameters in the server or UI:
 
 - **Thinking Mode (General Reasoning):**
   - `temp=1.0`, `top_p=0.95`, `top_k=20`, `presence_penalty=1.5`
@@ -130,9 +138,10 @@ llama-server \
     --fit-target <256 or 1536> \
     --jinja \
     --flash-attn on \
+    --no-mmap \
     --fit-ctx <context_size> \
     -b 1024 \
-    -ub 256 \
+    -ub 512 \
     -ctk q8_0 \
     -ctv q8_0 \
     --temp <0.6 or 1.0> \
@@ -146,8 +155,10 @@ llama-server \
 | **Flash Attention** | Faster inference | Enabled by default for all models. |
 | **Vision GPU Offload** | Fast prompt processing | Projector is offloaded to GPU when available. |
 | **KV Quantization** | VRAM Efficiency | `-ctk q8_0 -ctv q8_0` saves significant memory. |
+| **No `mmap`** | More stable host/GPU balance | `--no-mmap` is enabled in the Windows launcher to improve performance for large Qwen 3.6 35B text presets. |
+| **Larger UBatch** | Faster throughput | `-ub 512` is now the default in the Windows launcher. |
 | **Context Fitting** | Dynamic Offloading | Uses `--fit-target 256` for text models and `1536` for vision models. |
-| **Dynamic Sampling** | Task Optimization | Automatically switches between Coder-Next and 3.5-Thinking parameters. |
+| **Dynamic Sampling** | Task Optimization | Automatically switches between Coder-Next and Qwen 3.5 / 3.6 thinking parameters. |
 | **MoE Support** | Architecture Tuning | Specific handling for Mixture-of-Experts (Qwen MoE). |
 
 ## Project Structure

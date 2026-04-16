@@ -108,12 +108,12 @@ $TopK    = '40'
 $MinP    = '0.01'
 $PresPen = '0.0'
 
-if ($MODEL_NAME -like "*Qwen3.5*") {
-    # Optimized for "Thinking Mode: Precise Coding"
+if ($MODEL_NAME -match 'Qwen3\.(5|6)') {
+    # Optimized for Qwen 3.5 / 3.6 reasoning models
     $Temp    = '0.6'
     $TopK    = '20'
     $MinP    = '0.0'
-    Write-Host "-> Qwen 3.5 detected. Applying 'Thinking: Precise Coding' sampling parameters."
+    Write-Host "-> Qwen 3.5 / 3.6 detected. Applying 'Thinking: Precise Coding' sampling parameters."
 } else {
     Write-Host "-> Qwen 3 Coder detected. Applying standard coding sampling parameters."
 }
@@ -127,9 +127,10 @@ $Args += @(
     '--fit-target',        $FitTarget,
     '--jinja',
     '--flash-attn',        'on',
+    '--no-mmap',
     '--fit-ctx',           $MODEL_CTX,
     '-b',                  '1024',
-    '-ub',                 '256',
+    '-ub',                 '512',
     '-ctk',                'q8_0',
     '-ctv',                'q8_0',
     '--temp',              $Temp,
