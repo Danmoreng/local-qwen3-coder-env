@@ -105,23 +105,6 @@ The UI provides:
 - an editable request canvas that the model rewrites every turn
 - direct local proxying to `http://127.0.0.1:8080/v1/chat/completions`
 
-### Benchmark Speculative Editing
-Run a benchmark that starts `llama-server`, measures a code-generation pass plus two edit passes, and compares baseline output speed against self-speculative variants:
-```powershell
-./benchmark_speculative_editing.ps1
-```
-
-Default variants:
-- `baseline`
-- `ngram-mod` using `--spec-ngram-size-n 18 --draft-min 6 --draft-max 48`
-- `ngram-map-k4v` using `--spec-ngram-size-n 7 --spec-ngram-size-m 4 --spec-ngram-min-hits 1 --draft-max 16`
-
-The benchmark writes per-stage JSON/CSV artifacts under `benchmark-results/`.
-
-Important:
-- By default the benchmark ignores `mmproj` even if your selected preset is multimodal. `llama.cpp` disables speculative decoding for multimodal server loads, so text-only mode is required for meaningful speculative results.
-- The workflow is intentionally edit-heavy: it generates a complete algorithm, then re-sends the full file for small edits so repeated code patterns can be exploited by n-gram speculative decoding.
-
 ---
 
 ## Custom Models & Vision
