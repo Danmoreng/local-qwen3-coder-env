@@ -86,6 +86,17 @@ function Get-CudaVersionKey {
     [version]::new($Version.Major, $Version.Minor)
 }
 
+function Test-CudaVersionBlacklisted {
+    param([Parameter(Mandatory = $true)][version]$Version)
+
+    $key = Get-CudaVersionKey -Version $Version
+    $blacklist = @(
+        [version]'13.2'
+    )
+
+    $blacklist -contains $key
+}
+
 function Test-CudaVersionCompatible {
     param(
         [Parameter(Mandatory = $true)][version]$Version,
@@ -95,6 +106,10 @@ function Test-CudaVersionCompatible {
     )
 
     $key = Get-CudaVersionKey -Version $Version
+
+    if (Test-CudaVersionBlacklisted -Version $Version) {
+        return $false
+    }
 
     if ($Pinned) {
         $pinnedKey = Get-CudaVersionKey -Version $Pinned
@@ -131,6 +146,16 @@ function Test-CUDA {
     $installs = Get-CudaInstalls
     if (-not $installs) { return $false }
     return ($installs | Where-Object { $_.Version -ge $min } | Select-Object -First 1) -ne $null
+}
+
+function Test-CompatibleCudaInstalled {
+    param(
+        [version]$Min = [version]'12.4',
+        [version]$Max = $null,
+        [version]$Pinned = $null
+    )
+
+    (Get-CompatibleCudaInstalls -Min $Min -Max $Max -Pinned $Pinned | Select-Object -First 1) -ne $null
 }
 
 function Test-CUDAExact {
@@ -691,6 +716,9 @@ if ($DetectedSm) {
     Write-Host "-> GPU SM could not be determined pre-install - selecting latest CUDA."
 }
 
+$cudaReq.Test = { Test-CompatibleCudaInstalled -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion }
+Write-Host "-> CUDA 13.2 is excluded from automatic selection due to quantized-model issues." -ForegroundColor Cyan
+
 $reqs += $cudaReq
 
 $HadCompatibleCudaBeforeInstall = (Get-CompatibleCudaInstalls -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion | Select-Object -First 1) -ne $null
@@ -721,12 +749,20 @@ foreach ($r in $reqs) {
             default {
                 if ($r.ContainsKey('InstallerArgs')) { $installerArgs = $r['InstallerArgs'] } else { $installerArgs = '' }
                 if ($r.ContainsKey('Version'))       { $version       = $r['Version']       } else { $version       = '' }
-                Install-Winget -Id $r.Id -InstallerArgs $installerArgs -Version $version
-                if ($r.Name -ne 'Ninja') {
-                    if ($r.ContainsKey('Cmd') -and $r['Cmd']) {
-                        Ensure-CommandAvailable -Cmd $r['Cmd'] -TimeoutMin 5
-                    } else {
-                        Refresh-Env
+                if ($r.Id -eq 'Nvidia.CUDA' -and [string]::IsNullOrWhiteSpace($version)) {
+                    $targetCuda = Get-LatestCompatibleInstallableCudaVersion -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion
+                    if (-not $targetCuda) {
+                        throw "No compatible CUDA toolkit is currently installable for the configured range. Required: >= $($RequiredCudaVersion.ToString(2)). Blacklisted: 13.2."
+                    }
+                    Install-CudaToolkitVersion -Version $targetCuda
+                } else {
+                    Install-Winget -Id $r.Id -InstallerArgs $installerArgs -Version $version
+                    if ($r.Name -ne 'Ninja') {
+                        if ($r.ContainsKey('Cmd') -and $r['Cmd']) {
+                            Ensure-CommandAvailable -Cmd $r['Cmd'] -TimeoutMin 5
+                        } else {
+                            Refresh-Env
+                        }
                     }
                 }
             }
@@ -765,6 +801,8 @@ $hasCompatible = Get-CompatibleCudaInstalls -Min $RequiredCudaVersion -Max $MaxC
 if (-not $hasCompatible) {
     $expected = if ($PinnedCudaVersion) {
         $PinnedCudaVersion.ToString(2)
+    } elseif ($MaxCompatibleCudaVersion) {
+        "$($RequiredCudaVersion.ToString(2)) to $($MaxCompatibleCudaVersion.ToString(2))"
     } else {
         "$($RequiredCudaVersion.ToString(2)) or newer"
     }
