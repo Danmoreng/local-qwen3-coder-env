@@ -5,6 +5,14 @@ set -e
 # -----------------------
 # Downloads the selected Qwen model and runs llama-server on Linux.
 
+TEXT_ONLY=0
+if [[ "${1:-}" == "--text-only" ]]; then
+    TEXT_ONLY=1
+elif [[ -n "${1:-}" ]]; then
+    echo "Usage: ./run_llama_cpp_server.sh [--text-only]"
+    exit 1
+fi
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 SERVER_EXE="$SCRIPT_DIR/vendor/llama.cpp/build/bin/llama-server"
 MODEL_DIR="$SCRIPT_DIR/models"
@@ -81,7 +89,9 @@ fi
 # Vision Model Handling
 MMPROJ_ARG=""
 FIT_TARGET="256"
-if [[ "$MMPROJ_FILENAME" != "NONE" ]]; then
+if [[ "$TEXT_ONLY" -eq 1 ]]; then
+    echo "-> Text-only mode enabled. Skipping vision projector and using FIT_TARGET=$FIT_TARGET"
+elif [[ "$MMPROJ_FILENAME" != "NONE" ]]; then
     MMPROJ_PATH="$MODEL_DIR/$MMPROJ_FILENAME"
     if [ ! -f "$MMPROJ_PATH" ] && [[ "$MMPROJ_URL" != "NONE" && "$MMPROJ_URL" != "LOCAL" ]]; then
         echo "-> Vision projector not found. Downloading..."

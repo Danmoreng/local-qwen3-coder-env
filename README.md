@@ -1,6 +1,6 @@
 # Local Qwen Environment
 
-A streamlined environment for running **Qwen3-Coder**, **Qwen3.5**, and **Qwen3.6** models locally with high performance. This project automates the setup, building, and serving of GGUF models using `llama.cpp`, providing a ready-to-use coding assistant.
+A streamlined set of scripts for running **Qwen3-Coder**, **Qwen3.5**, and **Qwen3.6** models locally with tuned `llama.cpp` launcher defaults for coding workflows on Windows and Linux.
 
 If you only want a focused `llama.cpp` source build/install flow (without Qwen-specific model/agent setup), use the simpler companion repo: [Danmoreng/llama.cpp-installer](https://github.com/Danmoreng/llama.cpp-installer).
 
@@ -16,21 +16,17 @@ If you only want a focused `llama.cpp` source build/install flow (without Qwen-s
 
 ## Automatic Dependency Management
 
-The installation scripts (`install_llama_cpp.sh` and `install_llama_cpp.ps1`) attempt to automatically install or verify the following dependencies:
+The base installation scripts (`install_llama_cpp.sh` and `install_llama_cpp.ps1`) install or verify the dependencies needed to build and run `llama.cpp`.
 
 ### Linux (via `pacman` or system package manager)
 - **Git**, **CMake**, **Ninja**
-- **Node.js** (LTS) & **npm**
 - **CUDA Toolkit** (12.4+ for NVIDIA GPUs)
 - **Vulkan SDK** (`shaderc`, `vulkan-headers`, `vulkan-icd-loader`)
-- **qwen-code** CLI (installed via npm)
 
 ### Windows (via `winget`)
 - **Git**, **CMake**, **Ninja**
-- **Node.js** (v24.13.0) & **npm**
 - **Visual Studio 2022 Build Tools** (C++ Workload & Windows SDK)
 - **CUDA Toolkit** (selected automatically based on GPU compatibility: pre-Turing pins to 12.4, Blackwell prefers 12.8+, otherwise latest compatible)
-- **qwen-code** CLI (installed via npm)
 
 ---
 
@@ -59,10 +55,10 @@ Run the server using your preferred backend:
 ./run_llama_cpp_server_vulkan.sh
 ```
 
-### 4. Launch the Coding Agent
-In a new terminal, start the agent:
+For text-only benchmarking or A/B testing on multimodal presets:
 ```bash
-./run_qwen_agent.sh
+./run_llama_cpp_server.sh --text-only
+./run_llama_cpp_server_vulkan.sh --text-only
 ```
 
 ---
@@ -76,10 +72,9 @@ Run from an elevated PowerShell 7 prompt:
 ```
 
 ### 2. Execution
-Start the server and agent in separate windows:
+Start the server:
 ```powershell
 ./run_llama_cpp_server.ps1
-./run_qwen_agent.ps1
 ```
 
 For text-only benchmarking or A/B testing on multimodal presets, start the server with:
@@ -87,23 +82,20 @@ For text-only benchmarking or A/B testing on multimodal presets, start the serve
 ./run_llama_cpp_server.ps1 -TextOnly
 ```
 
-### Minimal Product Request Frontend
-This repo also includes a small local web frontend for drafting structured product requests with the selected `llama-server` model.
+---
 
-1. Start `llama-server` first:
-```powershell
-./run_llama_cpp_server.ps1
-```
-2. In another terminal, start the web app:
-```powershell
-npm run start:web
-```
-3. Open `http://127.0.0.1:4173`
+## Compatible Coding Agents
 
-The UI provides:
-- a chat panel where the model asks follow-up questions
-- an editable request canvas that the model rewrites every turn
-- direct local proxying to `http://127.0.0.1:8080/v1/chat/completions`
+Any coding agent that supports an OpenAI-compatible API can be used with this setup.
+
+Connection settings:
+- Base URL: `http://localhost:8080/v1`
+- API key: any placeholder value, for example `sk-no-key-required`
+- Model: the selected model alias from `model_config.json`
+
+Examples:
+- **Qwen Code**: https://github.com/QwenLM/qwen-code
+- **Pi Coding Agent**: https://github.com/badlogic/pi-mono
 
 ---
 
@@ -118,11 +110,9 @@ To use a custom model not listed in the presets:
 
 ---
 
-## Qwen3.6 35B Support
+## Runtime Defaults
 
-The repo now includes preset model support and tested server defaults for **Qwen3.6 35B**.
-
-The launchers now default to a single server slot with `-np 1`, which reduces recurrent-state overhead for single-user local coding setups. For the Windows server path, the optimized shared defaults also use `--fit on`, `--fit-target 256` for text models, `--no-mmap`, and `-ub 512`. Vision models still switch to `--fit-target 1536` when an `mmproj` is active.
+The launchers default to a single server slot with `-np 1`, which reduces recurrent-state overhead for single-user local coding setups. Text loads use `--fit-target 256`; vision loads switch to `--fit-target 1536` when an `mmproj` is active. The `--fit-ctx` value is the minimum context floor that `--fit` is allowed to keep, not a hard fixed runtime context.
 
 ---
 
@@ -176,22 +166,21 @@ llama-server \
 
 | Optimization | Purpose | Details |
 | --- | --- | --- |
-| **Flash Attention** | Faster inference | Enabled by default for all models. |
-| **Vision GPU Offload** | Fast prompt processing | Projector is offloaded to GPU when available. |
-| **KV Quantization** | VRAM Efficiency | `-ctk q8_0 -ctv q8_0` saves significant memory. |
-| **Single Server Slot** | Lower recurrent-state overhead | `-np 1` is now the default for local single-user runs, avoiding the server auto-default of 4 slots. |
-| **No `mmap`** | More stable host/GPU balance | `--no-mmap` is enabled in the Windows launcher to improve performance for large Qwen 3.6 35B text presets. |
-| **Larger UBatch** | Faster throughput | `-ub 512` is now the default in the Windows launcher. |
-| **Context Fitting** | Dynamic Offloading | Uses `--fit-target 256` for text models and `1536` for vision models. |
-| **Dynamic Sampling** | Task Optimization | Automatically switches between Coder-Next and Qwen 3.5 / 3.6 thinking parameters. |
-| **MoE Support** | Architecture Tuning | Specific handling for Mixture-of-Experts (Qwen MoE). |
+| **Flash Attention** | Faster inference | Enabled by default across the launchers. |
+| **Vision GPU Offload** | Faster multimodal prompt processing | Offloads the vision projector to the GPU for multimodal loads. |
+| **KV Quantization** | Lower memory use | `-ctk q8_0 -ctv q8_0` reduces KV cache memory usage. |
+| **Single Server Slot** | Lower recurrent-state overhead | `-np 1` configures the server for a single local user session. |
+| **No `mmap`** | More stable host/GPU balance | Enabled in the Windows launcher for large text-model loads. |
+| **Larger UBatch** | Higher prompt throughput | `-ub 512` increases prompt-processing throughput in the Windows launcher. |
+| **Context Fitting** | Dynamic memory fitting | `--fit-target` reserves per-device headroom, and `--fit-ctx` defines the minimum context floor used by `--fit`. |
+| **Dynamic Sampling** | Model-specific defaults | Applies coding-oriented defaults for Qwen 3 Coder and precise-coding defaults for Qwen 3.5 / 3.6. |
+| **MoE Support** | Better large-model handling | Uses launcher defaults that work well with Qwen Mixture-of-Experts models. |
 
 ## Project Structure
 
 - `vendor/llama.cpp/`: The engine powering the local inference.
 - `models/`: Storage for GGUF model files and vision projectors.
 - `select_model.sh` / `select_model.ps1`: Interactive configuration tool.
-- `run_qwen_agent.sh` / `run_qwen_agent.ps1`: Launches the `qwen-code` CLI.
 
 ## License
 

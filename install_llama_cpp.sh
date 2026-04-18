@@ -23,16 +23,6 @@ if ! command_exists cmake; then
   exit 1
 fi
 
-if ! command_exists node; then
-    echo "Error: 'node' (Node.js) is not installed. Please install it (LTS version recommended)."
-    exit 1
-fi
-
-if ! command_exists npm; then
-    echo "Error: 'npm' is not installed. Please install it."
-    exit 1
-fi
-
 if ! command_exists ninja; then
   echo "Warning: 'ninja' is not installed. CMake will default to 'make'."
   echo "         Installing ninja-build is recommended for faster builds."
@@ -130,14 +120,3 @@ else
     echo "         Please install the Vulkan SDK (vulkan-devel / vulkan-sdk) to enable this."
 fi
 
-# Install qwen-code CLI
-echo "-> Installing qwen-code CLI globally..."
-# We use sudo for global install if we are not root/owner, trying without first or checking permission might be better but standard is often sudo npm install -g
-if [ -w "$(npm root -g)" ]; then
-    npm install -g @qwen-code/qwen-code@latest
-else
-    echo "   (Root privileges required for global npm install)"
-    sudo npm install -g @qwen-code/qwen-code@latest
-fi
-
-echo "[OK] qwen-code CLI installed."
