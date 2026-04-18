@@ -654,13 +654,6 @@ $reqs = @(
         Test          = { Test-Command ninja }
         Id            = 'Ninja-build.Ninja'
         Cmd           = 'ninja'
-    },
-    @{
-        Name          = 'Node.js'
-        Test          = { Test-Command node }
-        Id            = 'OpenJS.NodeJS.LTS'
-        Cmd           = 'node'
-        Version       = '24.13.0'
     }
 )
 
@@ -837,13 +830,3 @@ finally {
 
 Write-Host ''
 Write-Host ("Done!  llama.cpp binaries are in: ""{0}""." -f (Join-Path $LlamaBuild 'bin'))
-
-# --- Install qwen-code CLI --------------------------------------------------
-Write-Host "-> installing qwen-code CLI globally..."
-# Refresh env to make sure node/npm are in path if they were just installed
-Refresh-Env
-# Ensure npm is in the path
-Ensure-CommandAvailable -Cmd 'npm' -TimeoutMin 2
-# Use cmd /c to run npm to avoid PowerShell execution policy issues with npm.ps1 shims
-& cmd /c "npm install -g @qwen-code/qwen-code@latest"
-Write-Host "[OK] qwen-code CLI installed."
