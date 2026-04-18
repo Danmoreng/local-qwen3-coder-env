@@ -124,6 +124,13 @@ if ($MODEL_NAME -match 'Qwen3\.(5|6)') {
     Write-Host "-> Qwen 3 Coder detected. Applying standard coding sampling parameters."
 }
 
+if ($MODEL_NAME -match 'Qwen3\.6') {
+    $Env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"preserve_thinking":true}'
+    Write-Host "-> Qwen 3.6 detected. Enabling preserve_thinking in the chat template."
+} else {
+    Remove-Item Env:LLAMA_CHAT_TEMPLATE_KWARGS -ErrorAction SilentlyContinue
+}
+
 # Recommended parameters
 $Args = @('--model', $ModelFile)
 $Args += $MmprojArg
