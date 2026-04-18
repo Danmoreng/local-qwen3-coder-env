@@ -35,6 +35,11 @@ if ! command_exists nvcc; then
 else
     NVCC_VERSION=$(nvcc --version | grep "release" | sed 's/.*release //;s/,.*//')
     echo "Found CUDA compiler: $NVCC_VERSION"
+    if [[ "$NVCC_VERSION" == 13.2* ]]; then
+        echo "Error: CUDA 13.2 is currently unsupported for llama.cpp quantized model builds."
+        echo "       Please switch to CUDA 13.1 or upgrade to CUDA 13.3+ once available."
+        exit 1
+    fi
 fi
 
 # Setup directories
