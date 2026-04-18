@@ -4,6 +4,10 @@
     - Launches llama-server.exe from llama.cpp with optimized settings
 #>
 
+param(
+    [switch]$TextOnly
+)
+
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $ServerExe  = Join-Path $ScriptRoot 'vendor\llama.cpp\build\bin\llama-server.exe'
 $ConfigFile = Join-Path $ScriptRoot "model_config.json"
@@ -88,7 +92,9 @@ if ($MODEL_SHARDS -gt 1) {
 # Vision Projector
 $MmprojArg = @()
 $FitTarget = "256"
-if ($MMPROJ_FILENAME -ne "NONE") {
+if ($TextOnly) {
+    Write-Host "-> Text-only mode enabled. Skipping vision projector and using FIT_TARGET=$FitTarget"
+} elseif ($MMPROJ_FILENAME -ne "NONE") {
     $MmprojPath = Join-Path $ModelDir $MMPROJ_FILENAME
     Download-File -Url $MMPROJ_URL -Destination $MmprojPath -Label "Vision Projector"
     if (Test-Path $MmprojPath) {
@@ -128,6 +134,7 @@ $Args += @(
     '--jinja',
     '--flash-attn',        'on',
     '--no-mmap',
+    '-np',                 '1',
     '--fit-ctx',           $MODEL_CTX,
     '-b',                  '1024',
     '-ub',                 '512',
