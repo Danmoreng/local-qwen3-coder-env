@@ -184,6 +184,11 @@ llama-server \
 - `models/`: Storage for GGUF model files and vision projectors.
 - `select_model.sh` / `select_model.ps1`: Interactive configuration tool.
 
+## Acknowledgments
+
+- **Qwen**: https://github.com/QwenLM
+- **llama.cpp**: https://github.com/ggml-org/llama.cpp
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
