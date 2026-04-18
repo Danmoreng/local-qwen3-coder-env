@@ -2,6 +2,8 @@
 
 A streamlined set of scripts for running **Qwen3-Coder**, **Qwen3.5**, and **Qwen3.6** models locally with tuned `llama.cpp` launcher defaults for coding workflows on Windows and Linux.
 
+Temporary CUDA policy for the Windows installer: CUDA `13.2` is excluded from automatic selection due to a quantized-model issue. Newer compatible releases are picked automatically once they are available.
+
 If you only want a focused `llama.cpp` source build/install flow (without Qwen-specific model/agent setup), use the simpler companion repo: [Danmoreng/llama.cpp-installer](https://github.com/Danmoreng/llama.cpp-installer).
 
 ## Features
