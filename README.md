@@ -116,6 +116,8 @@ To use a custom model not listed in the presets:
 
 The launchers default to a single server slot with `-np 1`, which reduces recurrent-state overhead for single-user local coding setups. Text loads use `--fit-target 256`; vision loads switch to `--fit-target 1536` when an `mmproj` is active. The `--fit-ctx` value is the minimum context floor that `--fit` is allowed to keep, not a hard fixed runtime context.
 
+For `Qwen3.6` presets, the launchers also set `LLAMA_CHAT_TEMPLATE_KWARGS='{"preserve_thinking":true}'` automatically so the model keeps prior reasoning in template context across turns without shell-quoting issues.
+
 ---
 
 ## Sampling Parameters & Modes
@@ -148,6 +150,7 @@ The environment uses several key optimizations to ensure smooth performance on c
 llama-server \
     --model <model_path> \
     [--mmproj <mmproj_path> --mmproj-offload] \
+    [LLAMA_CHAT_TEMPLATE_KWARGS='{"preserve_thinking":true}' for Qwen3.6] \
     --alias <alias_name> \
     --fit on \
     --fit-target <256 or 1536> \

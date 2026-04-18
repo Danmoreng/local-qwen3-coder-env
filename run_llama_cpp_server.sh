@@ -124,6 +124,13 @@ else
     echo "-> Qwen 3 Coder detected. Applying standard coding sampling parameters."
 fi
 
+if [[ "$MODEL_NAME" =~ Qwen3\.6 ]]; then
+    export LLAMA_CHAT_TEMPLATE_KWARGS='{"preserve_thinking":true}'
+    echo "-> Qwen 3.6 detected. Enabling preserve_thinking in the chat template."
+else
+    unset LLAMA_CHAT_TEMPLATE_KWARGS
+fi
+
 echo "-> Starting llama-server for $MODEL_NAME on http://localhost:8080 ..."
 
 "$SERVER_EXE" \
