@@ -123,6 +123,7 @@ echo "-> Starting llama-server (Vulkan) for $MODEL_NAME on http://localhost:8080
     --fit on \
     --fit-target "$FIT_TARGET" \
     --jinja \
+    -np 1 \
     --fit-ctx "$MODEL_CTX" \
     -b 1024 \
     -ub 256 \

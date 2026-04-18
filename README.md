@@ -82,6 +82,46 @@ Start the server and agent in separate windows:
 ./run_qwen_agent.ps1
 ```
 
+For text-only benchmarking or A/B testing on multimodal presets, start the server with:
+```powershell
+./run_llama_cpp_server.ps1 -TextOnly
+```
+
+### Minimal Product Request Frontend
+This repo also includes a small local web frontend for drafting structured product requests with the selected `llama-server` model.
+
+1. Start `llama-server` first:
+```powershell
+./run_llama_cpp_server.ps1
+```
+2. In another terminal, start the web app:
+```powershell
+npm run start:web
+```
+3. Open `http://127.0.0.1:4173`
+
+The UI provides:
+- a chat panel where the model asks follow-up questions
+- an editable request canvas that the model rewrites every turn
+- direct local proxying to `http://127.0.0.1:8080/v1/chat/completions`
+
+### Benchmark Speculative Editing
+Run a benchmark that starts `llama-server`, measures a code-generation pass plus two edit passes, and compares baseline output speed against self-speculative variants:
+```powershell
+./benchmark_speculative_editing.ps1
+```
+
+Default variants:
+- `baseline`
+- `ngram-mod` using `--spec-ngram-size-n 18 --draft-min 6 --draft-max 48`
+- `ngram-map-k4v` using `--spec-ngram-size-n 7 --spec-ngram-size-m 4 --spec-ngram-min-hits 1 --draft-max 16`
+
+The benchmark writes per-stage JSON/CSV artifacts under `benchmark-results/`.
+
+Important:
+- By default the benchmark ignores `mmproj` even if your selected preset is multimodal. `llama.cpp` disables speculative decoding for multimodal server loads, so text-only mode is required for meaningful speculative results.
+- The workflow is intentionally edit-heavy: it generates a complete algorithm, then re-sends the full file for small edits so repeated code patterns can be exploited by n-gram speculative decoding.
+
 ---
 
 ## Custom Models & Vision
@@ -99,7 +139,7 @@ To use a custom model not listed in the presets:
 
 The repo now includes preset model support and tested server defaults for **Qwen3.6 35B**.
 
-For the Windows server path, the optimized shared defaults now use `--fit on`, `--fit-target 256` for text models, `--no-mmap`, and `-ub 512`. Vision models still switch to `--fit-target 1536` when an `mmproj` is active.
+The launchers now default to a single server slot with `-np 1`, which reduces recurrent-state overhead for single-user local coding setups. For the Windows server path, the optimized shared defaults also use `--fit on`, `--fit-target 256` for text models, `--no-mmap`, and `-ub 512`. Vision models still switch to `--fit-target 1536` when an `mmproj` is active.
 
 ---
 
@@ -139,6 +179,7 @@ llama-server \
     --jinja \
     --flash-attn on \
     --no-mmap \
+    -np 1 \
     --fit-ctx <context_size> \
     -b 1024 \
     -ub 512 \
@@ -155,6 +196,7 @@ llama-server \
 | **Flash Attention** | Faster inference | Enabled by default for all models. |
 | **Vision GPU Offload** | Fast prompt processing | Projector is offloaded to GPU when available. |
 | **KV Quantization** | VRAM Efficiency | `-ctk q8_0 -ctv q8_0` saves significant memory. |
+| **Single Server Slot** | Lower recurrent-state overhead | `-np 1` is now the default for local single-user runs, avoiding the server auto-default of 4 slots. |
 | **No `mmap`** | More stable host/GPU balance | `--no-mmap` is enabled in the Windows launcher to improve performance for large Qwen 3.6 35B text presets. |
 | **Larger UBatch** | Faster throughput | `-ub 512` is now the default in the Windows launcher. |
 | **Context Fitting** | Dynamic Offloading | Uses `--fit-target 256` for text models and `1536` for vision models. |
