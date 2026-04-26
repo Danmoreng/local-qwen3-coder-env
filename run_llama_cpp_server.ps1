@@ -132,6 +132,9 @@ if ($MODEL_NAME -match 'Qwen3\.6') {
 }
 
 # Recommended parameters
+$BatchSize = '1024'
+$UBatchSize = '512'
+
 $Args = @('--model', $ModelFile)
 $Args += $MmprojArg
 $Args += @(
@@ -143,8 +146,8 @@ $Args += @(
     '--no-mmap',
     '-np',                 '1',
     '--fit-ctx',           $MODEL_CTX,
-    '-b',                  '1024',
-    '-ub',                 '512',
+    '-b',                  $BatchSize,
+    '-ub',                 $UBatchSize,
     '-ctk',                'q8_0',
     '-ctv',                'q8_0',
     '--temp',              $Temp,

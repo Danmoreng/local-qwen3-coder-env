@@ -9,6 +9,7 @@ If you only want a focused `llama.cpp` source build/install flow (without Qwen-s
 ## Features
 
 - **Modular Model Selection**: Choose between various Qwen3-Coder, Qwen3.5, and Qwen3.6 variants, including the added **Qwen3.6 35B** preset models.
+- **27B Presets & Launcher**: Includes **Qwen3.6-27B** presets and a dedicated Windows launcher (`run_qwen3_6_27b_optimized.ps1`) for 16GB-class text-first setups.
 - **Vision Model Support**: Full multimodal support for the **Qwen 3.5 / 3.6** families. The environment automatically manages the necessary vision projectors (`mmproj`).
 - **Auto-Detection**: Automatically detects any `.gguf` files placed in the `models/` directory.
 - **Optimized Performance**: Pre-configured with flags for Flash Attention, KV-cache quantization, `--no-mmap`, `-ub 512`, and MoE-aware fitting defaults.
@@ -82,6 +83,16 @@ Start the server:
 For text-only benchmarking or A/B testing on multimodal presets, start the server with:
 ```powershell
 ./run_llama_cpp_server.ps1 -TextOnly
+```
+
+For a dedicated Qwen3.6-27B launcher (text-only by default):
+```powershell
+./run_qwen3_6_27b_optimized.ps1
+```
+
+To enable vision mode in the specialized launcher:
+```powershell
+./run_qwen3_6_27b_optimized.ps1 -Vision
 ```
 
 ---
