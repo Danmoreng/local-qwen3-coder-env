@@ -129,8 +129,10 @@ $Args += @(
     '--top-p',             '0.95',
     '--top-k',             '20',
     '--min-p',             '0.0',
-    '--presence-penalty',  '0.0'
+    '--presence-penalty',  '0.0',
+    '--spec-default'
 )
+Write-Host "-> Speculative decoding defaults enabled (--spec-default)."
 
 Write-Host "-> Starting optimized llama-server for $MODEL_NAME on http://localhost:8080 ..."
 Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -Wait

@@ -85,7 +85,7 @@ For text-only benchmarking or A/B testing on multimodal presets, start the serve
 ./run_llama_cpp_server.ps1 -TextOnly
 ```
 
-For a dedicated Qwen3.6-27B launcher (text-only by default):
+For a dedicated Qwen3.6-27B launcher (text-only by default, with speculative decoding defaults enabled via `--spec-default`):
 ```powershell
 ./run_qwen3_6_27b_optimized.ps1
 ```
@@ -128,6 +128,8 @@ To use a custom model not listed in the presets:
 The launchers default to a single server slot with `-np 1`, which reduces recurrent-state overhead for single-user local coding setups. Text loads use `--fit-target 256`; vision loads switch to `--fit-target 1536` when an `mmproj` is active. The `--fit-ctx` value is the minimum context floor that `--fit` is allowed to keep, not a hard fixed runtime context.
 
 For `Qwen3.6` presets, the launchers also set `LLAMA_CHAT_TEMPLATE_KWARGS='{"preserve_thinking":true}'` automatically so the model keeps prior reasoning in template context across turns without shell-quoting issues.
+
+The dedicated Windows `Qwen3.6-27B` launcher (`run_qwen3_6_27b_optimized.ps1`) also enables speculative decoding defaults with `--spec-default` by default.
 
 ---
 
