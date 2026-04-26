@@ -35,11 +35,6 @@ if ! command_exists nvcc; then
 else
     NVCC_VERSION=$(nvcc --version | grep "release" | sed 's/.*release //;s/,.*//')
     echo "Found CUDA compiler: $NVCC_VERSION"
-    if [[ "$NVCC_VERSION" == 13.2* ]]; then
-        echo "Error: CUDA 13.2 is currently unsupported for llama.cpp quantized model builds."
-        echo "       Please switch to CUDA 13.1 or upgrade to CUDA 13.3+ once available."
-        exit 1
-    fi
 fi
 
 # Setup directories
@@ -81,47 +76,4 @@ cmake --build . --config Release --target llama-server llama-batched-bench llama
 echo ""
 echo "Done! llama.cpp (CUDA) binaries are in: $LLAMA_BUILD/bin"
 
-# --- Vulkan Build ---
-if command_exists glslc; then
-    echo ""
-    echo "-> Vulkan SDK (glslc) found."
-
-    # Arch Linux: Check for headers
-    if [ -f "/etc/arch-release" ]; then
-        if ! pacman -Q vulkan-headers >/dev/null 2>&1; then
-             echo "-> Missing 'vulkan-headers'. Attempting to install..."
-             if sudo pacman -S --needed --noconfirm vulkan-headers vulkan-icd-loader vulkan-tools shaderc; then
-                 echo "[OK] Vulkan dependencies installed."
-             else
-                 echo "Error: Failed to install Vulkan headers. Please run: sudo pacman -S vulkan-headers"
-                 exit 1
-             fi
-        fi
-    fi
-
-    echo "-> Building llama.cpp with Vulkan support..."
-    LLAMA_BUILD_VK="$LLAMA_REPO/build-vulkan"
-    mkdir -p "$LLAMA_BUILD_VK"
-    cd "$LLAMA_BUILD_VK"
-
-    # Configure for Vulkan (Disable CUDA to ensure pure Vulkan build/priority)
-    CMAKE_ARGS_VK="-DGGML_VULKAN=ON -DGGML_CUDA=OFF -DCMAKE_BUILD_TYPE=Release -DLLAMA_CURL=OFF"
-    
-    if command_exists ninja; then
-        CMAKE_ARGS_VK="-G Ninja $CMAKE_ARGS_VK"
-    fi
-
-    echo "Running cmake (Vulkan) with: $CMAKE_ARGS_VK"
-    cmake .. $CMAKE_ARGS_VK
-
-    echo "-> Building targets (Vulkan)..."
-    cmake --build . --config Release --target llama-server llama-batched-bench llama-cli llama-bench llama-fit-params --parallel
-
-    echo ""
-    echo "Done! llama.cpp (Vulkan) binaries are in: $LLAMA_BUILD_VK/bin"
-else
-    echo ""
-    echo "Warning: 'glslc' not found. Skipping Vulkan build."
-    echo "         Please install the Vulkan SDK (vulkan-devel / vulkan-sdk) to enable this."
-fi
 
