@@ -7,6 +7,8 @@ CONFIG_FILE="model_config.json"
 # 1. Define Known/Remote Models
 # Format: "Display Name|URL|Alias|Context|Filename|MMPROJ_URL|MMPROJ_FILENAME|SHARDS"
 KNOWN_MODELS=(
+    "Qwen3.6-27B (Dense) - UD-IQ3_M|https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-UD-IQ3_M.gguf|unsloth/Qwen3.6-27B-UD-IQ3_M|65536|Qwen3.6-27B-UD-IQ3_M.gguf|https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.6-27B.gguf|1"
+    "Qwen3.6-27B (Dense) - UD-IQ3_XXS|https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-UD-IQ3_XXS.gguf|unsloth/Qwen3.6-27B-UD-IQ3_XXS|65536|Qwen3.6-27B-UD-IQ3_XXS.gguf|https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.6-27B.gguf|1"
     "Qwen3.6-35B-A3B (MoE) - UD-Q4_K_M|https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf|unsloth/Qwen3.6-35B-A3B-UD-Q4_K_M|32768|Qwen3.6-35B-A3B-UD-Q4_K_M.gguf|https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.6-35B.gguf|1"
     "Qwen3.5-35B-A3B (MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf|unsloth/Qwen3.5-35B-A3B|32768|Qwen3.5-35B-A3B-Q4_K_M.gguf|https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.5-35B.gguf|1"
     "Qwen3-Coder-Next (80B MoE) - Q4_K_M|https://huggingface.co/unsloth/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-Q4_K_M.gguf|unsloth/Qwen3-Coder-Next|32768|Qwen3-Coder-Next-Q4_K_M.gguf|NONE|NONE|1"
