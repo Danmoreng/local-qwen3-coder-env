@@ -1,11 +1,12 @@
-<#  run_llama_cpp_server.ps1  PowerShell 5/7
+<#  run_qwen3_6_27b_optimized.ps1  PowerShell 5/7
     ----------------------------------------------------------
-    - Manages model selection and download (supports shards)
-    - Launches llama-server.exe from llama.cpp with optimized settings
+    Specialized launcher for Qwen 3.6 27B presets on Windows.
+    - Defaults to text-only mode for 16GB-class VRAM
+    - Supports optional vision mode via -Vision
 #>
 
 param(
-    [switch]$TextOnly
+    [switch]$Vision
 )
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -25,26 +26,6 @@ function Get-ConfigValue {
     return $Config.$Fallback
 }
 
-if (-not (Test-Path $ServerExe)) {
-    throw "llama-server.exe not found at '$ServerExe' - please run install_llama_cpp.ps1 first."
-}
-
-# Ensure model is selected
-if (-not (Test-Path $ConfigFile)) {
-    & (Join-Path $ScriptRoot "select_model.ps1")
-}
-
-# Load Configuration (JSON)
-$Config = Get-Content -Raw $ConfigFile | ConvertFrom-Json
-$MODEL_NAME      = Get-ConfigValue -Config $Config -Primary 'MODEL_NAME' -Fallback 'Name'
-$MODEL_URL       = Get-ConfigValue -Config $Config -Primary 'MODEL_URL' -Fallback 'Url'
-$MODEL_ALIAS     = Get-ConfigValue -Config $Config -Primary 'MODEL_ALIAS' -Fallback 'Alias'
-$MODEL_CTX       = Get-ConfigValue -Config $Config -Primary 'MODEL_CTX' -Fallback 'Ctx'
-$MODEL_FILENAME  = Get-ConfigValue -Config $Config -Primary 'MODEL_FILENAME' -Fallback 'Filename'
-$MMPROJ_URL      = Get-ConfigValue -Config $Config -Primary 'MMPROJ_URL' -Fallback 'MmprojUrl'
-$MMPROJ_FILENAME = Get-ConfigValue -Config $Config -Primary 'MMPROJ_FILENAME' -Fallback 'MmprojFilename'
-$MODEL_SHARDS    = Get-ConfigValue -Config $Config -Primary 'MODEL_SHARDS' -Fallback 'Shards'
-
 function Download-File {
     param([string]$Url, [string]$Destination, [string]$Label)
     if (Test-Path $Destination) {
@@ -52,7 +33,7 @@ function Download-File {
         return $true
     }
     if ($Url -eq "NONE" -or $Url -eq "LOCAL") { return $false }
-    
+
     New-Item -ItemType Directory -Path (Split-Path $Destination) -Force | Out-Null
     Write-Host "-> downloading $Label : $Url"
 
@@ -74,7 +55,28 @@ function Download-File {
     return $true
 }
 
-# Handle Shards or Single File
+if (-not (Test-Path $ServerExe)) {
+    throw "llama-server.exe not found at '$ServerExe' - please run install_llama_cpp.ps1 first."
+}
+
+if (-not (Test-Path $ConfigFile)) {
+    & (Join-Path $ScriptRoot "select_model.ps1")
+}
+
+$Config = Get-Content -Raw $ConfigFile | ConvertFrom-Json
+$MODEL_NAME      = Get-ConfigValue -Config $Config -Primary 'MODEL_NAME' -Fallback 'Name'
+$MODEL_URL       = Get-ConfigValue -Config $Config -Primary 'MODEL_URL' -Fallback 'Url'
+$MODEL_ALIAS     = Get-ConfigValue -Config $Config -Primary 'MODEL_ALIAS' -Fallback 'Alias'
+$MODEL_CTX       = Get-ConfigValue -Config $Config -Primary 'MODEL_CTX' -Fallback 'Ctx'
+$MODEL_FILENAME  = Get-ConfigValue -Config $Config -Primary 'MODEL_FILENAME' -Fallback 'Filename'
+$MMPROJ_URL      = Get-ConfigValue -Config $Config -Primary 'MMPROJ_URL' -Fallback 'MmprojUrl'
+$MMPROJ_FILENAME = Get-ConfigValue -Config $Config -Primary 'MMPROJ_FILENAME' -Fallback 'MmprojFilename'
+$MODEL_SHARDS    = Get-ConfigValue -Config $Config -Primary 'MODEL_SHARDS' -Fallback 'Shards'
+
+if ($MODEL_NAME -notmatch 'Qwen3\.6-27B') {
+    Write-Warning "This launcher is tuned for Qwen3.6-27B presets. Current selection: $MODEL_NAME"
+}
+
 if ($MODEL_SHARDS -gt 1) {
     for ($i = 1; $i -le $MODEL_SHARDS; $i++) {
         $shardSuffix = "-$($i.ToString('00000'))-of-$($MODEL_SHARDS.ToString('00000')).gguf"
@@ -89,51 +91,24 @@ if ($MODEL_SHARDS -gt 1) {
     Download-File -Url $MODEL_URL -Destination $ModelFile -Label "Model"
 }
 
-# Vision Projector
+$TextOnly = -not $Vision
 $MmprojArg = @()
 $FitTarget = "256"
+
 if ($TextOnly) {
-    Write-Host "-> Text-only mode enabled. Skipping vision projector and using FIT_TARGET=$FitTarget"
+    Write-Host "-> Text-only mode enabled. Using FIT_TARGET=$FitTarget."
 } elseif ($MMPROJ_FILENAME -ne "NONE") {
     $MmprojPath = Join-Path $ModelDir $MMPROJ_FILENAME
     Download-File -Url $MMPROJ_URL -Destination $MmprojPath -Label "Vision Projector"
     if (Test-Path $MmprojPath) {
         $MmprojArg = @('--mmproj', $MmprojPath, '--mmproj-offload')
         $FitTarget = "1536"
-        Write-Host "-> Vision model detected. Using GPU offload and FIT_TARGET=$FitTarget"
+        Write-Host "-> Vision mode enabled. Using FIT_TARGET=$FitTarget with mmproj offload."
     }
 }
 
-# Row-major speedup
 $Env:LLAMA_SET_ROWS = '1'
-
-# Sampling Parameters based on model series
-$Temp    = '1.0'
-$TopP    = '0.95'
-$TopK    = '40'
-$MinP    = '0.01'
-$PresPen = '0.0'
-
-if ($MODEL_NAME -match 'Qwen3\.(5|6)') {
-    # Optimized for Qwen 3.5 / 3.6 reasoning models
-    $Temp    = '0.6'
-    $TopK    = '20'
-    $MinP    = '0.0'
-    Write-Host "-> Qwen 3.5 / 3.6 detected. Applying 'Thinking: Precise Coding' sampling parameters."
-} else {
-    Write-Host "-> Qwen 3 Coder detected. Applying standard coding sampling parameters."
-}
-
-if ($MODEL_NAME -match 'Qwen3\.6') {
-    $Env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"preserve_thinking":true}'
-    Write-Host "-> Qwen 3.6 detected. Enabling preserve_thinking in the chat template."
-} else {
-    Remove-Item Env:LLAMA_CHAT_TEMPLATE_KWARGS -ErrorAction SilentlyContinue
-}
-
-# Recommended parameters
-$BatchSize = '1024'
-$UBatchSize = '512'
+$Env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"preserve_thinking":true}'
 
 $Args = @('--model', $ModelFile)
 $Args += $MmprojArg
@@ -146,16 +121,16 @@ $Args += @(
     '--no-mmap',
     '-np',                 '1',
     '--fit-ctx',           $MODEL_CTX,
-    '-b',                  $BatchSize,
-    '-ub',                 $UBatchSize,
+    '-b',                  '1024',
+    '-ub',                 '512',
     '-ctk',                'q8_0',
     '-ctv',                'q8_0',
-    '--temp',              $Temp,
-    '--top-p',             $TopP,
-    '--top-k',             $TopK,
-    '--min-p',             $MinP,
-    '--presence-penalty',  $PresPen
+    '--temp',              '0.6',
+    '--top-p',             '0.95',
+    '--top-k',             '20',
+    '--min-p',             '0.0',
+    '--presence-penalty',  '0.0'
 )
 
-Write-Host "-> Starting llama-server for $MODEL_NAME on http://localhost:8080 ..."
+Write-Host "-> Starting optimized llama-server for $MODEL_NAME on http://localhost:8080 ..."
 Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -Wait
