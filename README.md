@@ -85,10 +85,12 @@ For text-only benchmarking or A/B testing on multimodal presets, start the serve
 ./run_llama_cpp_server.ps1 -TextOnly
 ```
 
-For a dedicated Qwen3.6-27B launcher (text-only by default, with speculative decoding defaults enabled via `--spec-default`):
+For the dedicated 16GB GPU Qwen3.6-27B launcher:
 ```powershell
 ./run_qwen3_6_27b_optimized.ps1
 ```
+
+This script intentionally fixes the model and runtime profile for 16GB NVIDIA GPUs: `Qwen3.6-27B-UD-IQ3_XXS`, Q8 K/V cache, Flash Attention, one server slot, `ngram-map-k` speculative decoding, a 64K context floor, and `preserve_thinking=true` for stronger coding/reasoning continuity. `llama.cpp --fit` can raise the actual context above 64K when VRAM allows.
 
 To enable vision mode in the specialized launcher:
 ```powershell

@@ -73,9 +73,16 @@ $MMPROJ_URL      = Get-ConfigValue -Config $Config -Primary 'MMPROJ_URL' -Fallba
 $MMPROJ_FILENAME = Get-ConfigValue -Config $Config -Primary 'MMPROJ_FILENAME' -Fallback 'MmprojFilename'
 $MODEL_SHARDS    = Get-ConfigValue -Config $Config -Primary 'MODEL_SHARDS' -Fallback 'Shards'
 
-if ($MODEL_NAME -notmatch 'Qwen3\.6-27B') {
-    Write-Warning "This launcher is tuned for Qwen3.6-27B presets. Current selection: $MODEL_NAME"
-}
+# This launcher is intentionally fixed to the best 16GB-class Qwen3.6-27B setup:
+# UD-IQ3_XXS leaves enough VRAM for long Q8 KV cache while keeping the model fully GPU-resident.
+$MODEL_NAME      = 'Qwen3.6-27B (Dense) - UD-IQ3_XXS'
+$MODEL_URL       = 'https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-UD-IQ3_XXS.gguf'
+$MODEL_ALIAS     = 'unsloth/Qwen3.6-27B-UD-IQ3_XXS'
+$MODEL_CTX       = 65536
+$MODEL_FILENAME  = 'Qwen3.6-27B-UD-IQ3_XXS.gguf'
+$MMPROJ_URL      = 'https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-BF16.gguf'
+$MMPROJ_FILENAME = 'mmproj-Qwen3.6-27B.gguf'
+$MODEL_SHARDS    = 1
 
 if ($MODEL_SHARDS -gt 1) {
     for ($i = 1; $i -le $MODEL_SHARDS; $i++) {
@@ -107,6 +114,10 @@ if ($TextOnly) {
     }
 }
 
+$EffectiveCtx = "$MODEL_CTX"
+$EffectiveCacheTypeK = 'q8_0'
+$EffectiveCacheTypeV = 'q8_0'
+
 $Env:LLAMA_SET_ROWS = '1'
 $Env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"preserve_thinking":true}'
 
@@ -120,19 +131,23 @@ $Args += @(
     '--flash-attn',        'on',
     '--no-mmap',
     '-np',                 '1',
-    '--fit-ctx',           $MODEL_CTX,
+    '--fit-ctx',           $EffectiveCtx,
     '-b',                  '1024',
     '-ub',                 '512',
-    '-ctk',                'q8_0',
-    '-ctv',                'q8_0',
+    '-ctk',                $EffectiveCacheTypeK,
+    '-ctv',                $EffectiveCacheTypeV,
     '--temp',              '0.6',
     '--top-p',             '0.95',
     '--top-k',             '20',
     '--min-p',             '0.0',
     '--presence-penalty',  '0.0',
-    '--spec-default'
+    '--spec-type',         'ngram-map-k',
+    '--spec-ngram-size-n', '16',
+    '--draft-min',         '12',
+    '--draft-max',         '48'
 )
-Write-Host "-> Speculative decoding defaults enabled (--spec-default)."
+Write-Host "-> Speculative decoding preset: ngram-map-k, n=16, draft 12..48."
+Write-Host "-> KV cache types: K=$EffectiveCacheTypeK, V=$EffectiveCacheTypeV. Minimum fit context floor: $EffectiveCtx."
 
 Write-Host "-> Starting optimized llama-server for $MODEL_NAME on http://localhost:8080 ..."
 Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -Wait
