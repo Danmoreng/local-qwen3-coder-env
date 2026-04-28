@@ -573,13 +573,13 @@ function Reset-CMakeCacheIfCudaChanged {
     $cachePath = Join-Path $BuildDir 'CMakeCache.txt'
     if (-not (Test-Path $cachePath)) { return }
 
-    $cacheText = Get-Content $cachePath -Raw
+    $cacheText = (Get-Content $cachePath -Raw).Replace('\', '/')
     $expectedRoot = $CudaRoot.Replace('\', '/')
     $expectedNvcc = (Join-Path $CudaRoot 'bin\nvcc.exe').Replace('\', '/')
     $configuredForRoot = $cacheText -match [regex]::Escape($expectedRoot)
-    $configuredForNvcc = $cacheText -match [regex]::Escape($expectedNvcc)
+    $configuredForCudaCompiler = $cacheText -match [regex]::Escape("CMAKE_CUDA_COMPILER:FILEPATH=$expectedNvcc")
 
-    if ($configuredForRoot -or $configuredForNvcc) { return }
+    if ($configuredForRoot -and $configuredForCudaCompiler) { return }
 
     Clear-LlamaCMakeConfiguration -BuildDir $BuildDir -Reason 'CUDA toolkit changed'
 }
@@ -870,6 +870,7 @@ if (-not $hasCompatible) {
 
 # --- Select CUDA toolkit and auto-detect architecture ---
 $cudaRootArg = Use-LatestCuda -Min $RequiredCudaVersion -Max $MaxCompatibleCudaVersion -Pinned $PinnedCudaVersion
+$cudaCompilerArg = "-DCMAKE_CUDA_COMPILER=$(Join-Path $env:CUDA_PATH 'bin\nvcc.exe')"
 
 # ---------------------------------------------------------------------------
 # Clone & build ggerganov/llama.cpp
@@ -915,6 +916,7 @@ try {
         -DLLAMA_CURL=OFF `
         -DGGML_CUDA_FA_ALL_QUANTS=ON `
         "-DCMAKE_CUDA_ARCHITECTURES=$CudaArchArg" `
+        $cudaCompilerArg `
         $cudaRootArg
     Assert-LastExitCode "cmake configure"
     Set-LlamaSourceStamp -BuildDir $LlamaBuild -Fingerprint $LlamaSourceFingerprint
