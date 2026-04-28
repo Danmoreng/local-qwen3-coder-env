@@ -142,9 +142,9 @@ $Args += @(
     '--min-p',             '0.0',
     '--presence-penalty',  '0.0',
     '--spec-type',         'ngram-map-k',
-    '--spec-ngram-size-n', '16',
-    '--draft-min',         '12',
-    '--draft-max',         '48'
+    '--spec-ngram-map-k-size-n', '16',
+    '--spec-draft-n-min',  '12',
+    '--spec-draft-n-max',  '48'
 )
 Write-Host "-> Speculative decoding preset: ngram-map-k, n=16, draft 12..48."
 Write-Host "-> KV cache types: K=$EffectiveCacheTypeK, V=$EffectiveCacheTypeV. Minimum fit context floor: $EffectiveCtx."
