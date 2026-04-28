@@ -492,6 +492,76 @@ function Install-NinjaPortable {
     Write-Host "[OK] Ninja"
 }
 
+function Clear-LlamaCMakeConfiguration {
+    param(
+        [Parameter(Mandatory = $true)][string]$BuildDir,
+        [Parameter(Mandatory = $true)][string]$Reason
+    )
+
+    $resolvedBuildDir = (Resolve-Path -LiteralPath $BuildDir).Path
+    $resolvedRepoRoot = (Resolve-Path -LiteralPath (Join-Path $ScriptRoot 'vendor\llama.cpp')).Path
+    if (-not $resolvedBuildDir.StartsWith($resolvedRepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to reset CMake cache outside the vendored llama.cpp tree: $resolvedBuildDir"
+    }
+
+    Write-Host "-> $Reason; clearing cached CMake configuration in $resolvedBuildDir" -ForegroundColor Yellow
+    $cachePath = Join-Path $BuildDir 'CMakeCache.txt'
+    Remove-Item -LiteralPath $cachePath -Force -ErrorAction SilentlyContinue
+
+    $cacheDir = Join-Path $BuildDir 'CMakeFiles'
+    if (Test-Path $cacheDir) {
+        Remove-Item -LiteralPath $cacheDir -Recurse -Force
+    }
+}
+
+function Get-LlamaSourceFingerprint {
+    param([Parameter(Mandatory = $true)][string]$RepoDir)
+
+    $head = & git -C $RepoDir rev-parse HEAD
+    Assert-LastExitCode "git rev-parse"
+
+    $submodules = & git -C $RepoDir submodule status --recursive
+    Assert-LastExitCode "git submodule status"
+
+    (@("HEAD $head") + @($submodules)) -join "`n"
+}
+
+function Get-LlamaSourceStampPath {
+    param([Parameter(Mandatory = $true)][string]$BuildDir)
+    Join-Path $BuildDir '.llama-cpp-source.stamp'
+}
+
+function Reset-CMakeCacheIfSourceChanged {
+    param(
+        [Parameter(Mandatory = $true)][string]$BuildDir,
+        [Parameter(Mandatory = $true)][string]$Fingerprint
+    )
+
+    $cachePath = Join-Path $BuildDir 'CMakeCache.txt'
+    if (-not (Test-Path $cachePath)) { return }
+
+    $stampPath = Get-LlamaSourceStampPath -BuildDir $BuildDir
+    if (-not (Test-Path $stampPath)) {
+        Clear-LlamaCMakeConfiguration -BuildDir $BuildDir -Reason 'llama.cpp source stamp is missing'
+        return
+    }
+
+    $previousFingerprint = Get-Content $stampPath -Raw
+    if ($previousFingerprint.TrimEnd() -ne $Fingerprint.TrimEnd()) {
+        Clear-LlamaCMakeConfiguration -BuildDir $BuildDir -Reason 'llama.cpp source changed'
+    }
+}
+
+function Set-LlamaSourceStamp {
+    param(
+        [Parameter(Mandatory = $true)][string]$BuildDir,
+        [Parameter(Mandatory = $true)][string]$Fingerprint
+    )
+
+    $stampPath = Get-LlamaSourceStampPath -BuildDir $BuildDir
+    Set-Content -LiteralPath $stampPath -Value $Fingerprint -Encoding ASCII
+}
+
 # If the selected CUDA toolkit changed since the last configure, clear the cache
 # so CMake picks up the matching nvcc/compiler settings for the new toolkit.
 function Reset-CMakeCacheIfCudaChanged {
@@ -511,19 +581,7 @@ function Reset-CMakeCacheIfCudaChanged {
 
     if ($configuredForRoot -or $configuredForNvcc) { return }
 
-    $resolvedBuildDir = (Resolve-Path -LiteralPath $BuildDir).Path
-    $resolvedRepoRoot = (Resolve-Path -LiteralPath (Join-Path $ScriptRoot 'vendor\llama.cpp')).Path
-    if (-not $resolvedBuildDir.StartsWith($resolvedRepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing to reset CMake cache outside the vendored llama.cpp tree: $resolvedBuildDir"
-    }
-
-    Write-Host "-> CUDA toolkit changed; clearing cached CMake configuration in $resolvedBuildDir" -ForegroundColor Yellow
-    Remove-Item -LiteralPath $cachePath -Force -ErrorAction SilentlyContinue
-
-    $cacheDir = Join-Path $BuildDir 'CMakeFiles'
-    if (Test-Path $cacheDir) {
-        Remove-Item -LiteralPath $cacheDir -Recurse -Force
-    }
+    Clear-LlamaCMakeConfiguration -BuildDir $BuildDir -Reason 'CUDA toolkit changed'
 }
 
 # Select newest CUDA (>=12.4), export env, return CMake arg
@@ -832,6 +890,7 @@ if (-not (Test-Path $LlamaRepo)) {
 
 git -C $LlamaRepo submodule update --init --recursive
 Assert-LastExitCode "git submodule update"
+$LlamaSourceFingerprint = Get-LlamaSourceFingerprint -RepoDir $LlamaRepo
 
 # --- configure & build ------------------------------------------------------
 # Prepare CMake CUDA architectures argument
@@ -843,6 +902,7 @@ if ($DetectedSm) {
 }
 
 New-Item $LlamaBuild -ItemType Directory -Force | Out-Null
+Reset-CMakeCacheIfSourceChanged -BuildDir $LlamaBuild -Fingerprint $LlamaSourceFingerprint
 Reset-CMakeCacheIfCudaChanged -BuildDir $LlamaBuild -CudaRoot $env:CUDA_PATH
 Import-VSEnv   # make cl.exe etc. available in this session after any env refreshes/install steps
 Push-Location $LlamaBuild
@@ -857,6 +917,7 @@ try {
         "-DCMAKE_CUDA_ARCHITECTURES=$CudaArchArg" `
         $cudaRootArg
     Assert-LastExitCode "cmake configure"
+    Set-LlamaSourceStamp -BuildDir $LlamaBuild -Fingerprint $LlamaSourceFingerprint
 
     Write-Host '-> building upstream llama.cpp tools (Release) ...'
     cmake --build . --config Release --target llama-server llama-batched-bench llama-cli llama-bench llama-fit-params --parallel
