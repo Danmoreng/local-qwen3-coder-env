@@ -25,7 +25,7 @@ function Download-File {
     param([string]$Url, [string]$Destination, [string]$Label)
     if (Test-Path $Destination) { return }
     New-Item -ItemType Directory -Path (Split-Path $Destination) -Force | Out-Null
-    Write-Host "-> Downloading $Label: $Url"
+    Write-Host "-> Downloading ${Label}: $Url"
     $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
     if ($null -ne $curl) {
         & $curl.Source -L --fail --retry 5 --retry-delay 5 --output $Destination $Url

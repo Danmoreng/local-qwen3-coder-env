@@ -8,6 +8,8 @@ If you only want a focused `llama.cpp` source build/install flow (without Qwen-s
 
 - **Modular Model Selection**: Qwen3.8-27B is the recommended default, with additional Qwen3-Coder and Qwen3.5 presets available.
 - **Qwen3.8 27B Launcher**: Dedicated Linux and Windows launchers tuned for `Qwen3.8-27B-UD-IQ3_XXS` on 16GB-class GPUs.
+- **Pi Coding Agent Guide**: A focused Windows workflow for using Qwen3.8-27B as a local coding agent through the Hugging Face `pi-llama` extension.
+- **Official llama.app Alternative**: Documents the new unified `llama` application as the simplest prebuilt installation path while retaining this repo's tuned source-build launchers.
 - **Integrated MTP Drafting**: Uses Qwen3.8's built-in MTP layer through `--spec-type draft-mtp`; no separate draft model is required.
 - **Central Model Cache**: Hugging Face presets use the standard shared Hugging Face cache instead of duplicating files inside the repository.
 - **Vision Model Support**: Multimodal support for the Qwen3.8 and Qwen3.5 families, including automatic cached `mmproj` downloads.
@@ -119,6 +121,19 @@ The PowerShell launchers use `hf download` automatically when the CLI is availab
 powershell -ExecutionPolicy ByPass -c "irm https://hf.co/cli/install.ps1 | iex"
 ```
 
+### Official `llama` app alternative
+
+The official [llama.app](https://llama.app/) installer provides a prebuilt, unified `llama` command. Its `llama serve` subcommand is the packaged equivalent of `llama-server` and is a convenient alternative when you do not need a local source build:
+
+```powershell
+irm https://llama.app/install.ps1 | iex
+llama serve
+```
+
+Running `llama serve` without a model starts the model router and discovers GGUFs in the llama.cpp cache. The dedicated launcher in this repository remains the recommended route for Qwen3.8-27B on a 16GB NVIDIA GPU because it applies the tested quantization, context fitting, KV-cache, sampling, and MTP settings explicitly.
+
+For the complete setup, including an equivalent tuned `llama serve` command and Pi integration, see [Qwen3.8-27B with llama.cpp and Pi on a 16GB NVIDIA GPU](docs/qwen3.8-27b-pi-windows.md).
+
 ---
 
 ## Compatible Coding Agents
@@ -131,8 +146,10 @@ Connection settings:
 - Model: the selected model alias from `model_config.json`
 
 Examples:
+- **Pi Coding Agent**: Use the [`pi-llama`](https://github.com/huggingface/pi-llama) extension for automatic discovery of this repo's running single-model server. Follow the [16GB Windows guide](docs/qwen3.8-27b-pi-windows.md).
 - **Qwen Code**: https://github.com/QwenLM/qwen-code
-- **Pi Coding Agent**: https://github.com/badlogic/pi-mono
+
+Current Pi versions also include direct management for llama.cpp's multi-model router through `/login llama.cpp` and `/llama`. The `pi-llama` extension is the more direct match for this repo's tuned single-model launcher; the built-in integration is useful when `llama serve` is running without `--model`, `-m`, or `-hf`.
 
 ---
 
