@@ -7,6 +7,8 @@ CONFIG_FILE="model_config.json"
 # 1. Define Known/Remote Models
 # Format: "Display Name|URL|Alias|Context|Filename|MMPROJ_URL|MMPROJ_FILENAME|SHARDS"
 KNOWN_MODELS=(
+    "Qwen3.8-27B (Dense) - UD-IQ3_XXS (16GB recommended)|https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ3_XXS.gguf|unsloth/Qwen3.8-27B-UD-IQ3_XXS|65536|Qwen3.8-27B-UD-IQ3_XXS.gguf|https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.8-27B.gguf|1"
+    "Qwen3.8-27B (Dense) - UD-Q3_K_XL (quality)|https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q3_K_XL.gguf|unsloth/Qwen3.8-27B-UD-Q3_K_XL|65536|Qwen3.8-27B-UD-Q3_K_XL.gguf|https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.8-27B.gguf|1"
     "Qwen3.6-27B (Dense) - UD-Q3_K_XL|https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-UD-Q3_K_XL.gguf|unsloth/Qwen3.6-27B-UD-Q3_K_XL|65536|Qwen3.6-27B-UD-Q3_K_XL.gguf|https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.6-27B.gguf|1"
     "Qwen3.6-27B (Dense) - UD-IQ3_XXS|https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-UD-IQ3_XXS.gguf|unsloth/Qwen3.6-27B-UD-IQ3_XXS|65536|Qwen3.6-27B-UD-IQ3_XXS.gguf|https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.6-27B.gguf|1"
     "Qwen3.6-35B-A3B (MoE) - UD-Q4_K_M|https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf|unsloth/Qwen3.6-35B-A3B-UD-Q4_K_M|32768|Qwen3.6-35B-A3B-UD-Q4_K_M.gguf|https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf|mmproj-Qwen3.6-35B.gguf|1"
@@ -84,6 +86,16 @@ if [[ $choice -ge 1 && $choice -le ${#ALL_OPTIONS[@]} ]]; then
         fi
     fi
 
+    hf_repo="NONE"
+    hf_file="NONE"
+    if [[ "$url" =~ ^https://huggingface.co/([^/]+/[^/]+)/resolve/[^/]+/(.+)$ ]]; then
+        hf_repo="${BASH_REMATCH[1]}"
+        hf_file="${BASH_REMATCH[2]}"
+        if [[ "$shards" -gt 1 ]]; then
+            hf_file="${hf_file}-00001-of-$(printf "%05d" "$shards").gguf"
+        fi
+    fi
+
     cat <<EOF > "$CONFIG_FILE"
 {
   "MODEL_NAME": "$name",
@@ -91,6 +103,8 @@ if [[ $choice -ge 1 && $choice -le ${#ALL_OPTIONS[@]} ]]; then
   "MODEL_ALIAS": "$alias",
   "MODEL_CTX": $ctx,
   "MODEL_FILENAME": "$filename",
+  "MODEL_HF_REPO": "$hf_repo",
+  "MODEL_HF_FILE": "$hf_file",
   "MMPROJ_URL": "$mmproj_url",
   "MMPROJ_FILENAME": "$mmproj_filename",
   "MODEL_SHARDS": $shards

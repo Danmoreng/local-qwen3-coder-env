@@ -6,7 +6,8 @@
 #>
 
 param(
-    [switch]$Vision
+    [switch]$Vision,
+    [switch]$LocalModel
 )
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -80,11 +81,14 @@ $MODEL_URL       = 'https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main
 $MODEL_ALIAS     = 'unsloth/Qwen3.6-27B-UD-IQ3_XXS'
 $MODEL_CTX       = 65536
 $MODEL_FILENAME  = 'Qwen3.6-27B-UD-IQ3_XXS.gguf'
+$MODEL_HF_REPO   = 'unsloth/Qwen3.6-27B-GGUF'
+$MODEL_HF_FILE   = 'Qwen3.6-27B-UD-IQ3_XXS.gguf'
 $MMPROJ_URL      = 'https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-BF16.gguf'
 $MMPROJ_FILENAME = 'mmproj-Qwen3.6-27B.gguf'
 $MODEL_SHARDS    = 1
 
-if ($MODEL_SHARDS -gt 1) {
+$ModelArgs = @()
+if ($LocalModel -and $MODEL_SHARDS -gt 1) {
     for ($i = 1; $i -le $MODEL_SHARDS; $i++) {
         $shardSuffix = "-$($i.ToString('00000'))-of-$($MODEL_SHARDS.ToString('00000')).gguf"
         $shardFilename = "${MODEL_FILENAME}${shardSuffix}"
@@ -93,9 +97,19 @@ if ($MODEL_SHARDS -gt 1) {
         Download-File -Url $shardUrl -Destination $shardPath -Label "Shard $i/$MODEL_SHARDS"
     }
     $ModelFile = Join-Path $ModelDir ("${MODEL_FILENAME}-00001-of-$($MODEL_SHARDS.ToString('00000')).gguf")
-} else {
+    $ModelArgs = @('--model', $ModelFile)
+} elseif ($LocalModel) {
     $ModelFile = Join-Path $ModelDir $MODEL_FILENAME
     Download-File -Url $MODEL_URL -Destination $ModelFile -Label "Model"
+    $ModelArgs = @('--model', $ModelFile)
+} else {
+    $ModelArgs = @('--hf-repo', $MODEL_HF_REPO, '--hf-file', $MODEL_HF_FILE)
+}
+
+if ($LocalModel) {
+    Write-Host "-> Model source: local fallback ($ModelFile)"
+} else {
+    Write-Host "-> Model source: Hugging Face cache ($MODEL_HF_REPO / $MODEL_HF_FILE)"
 }
 
 $TextOnly = -not $Vision
@@ -104,6 +118,11 @@ $FitTarget = "256"
 
 if ($TextOnly) {
     Write-Host "-> Text-only mode enabled. Using FIT_TARGET=$FitTarget."
+    if (-not $LocalModel) { $MmprojArg = @('--no-mmproj') }
+} elseif (-not $LocalModel -and $MMPROJ_FILENAME -ne "NONE") {
+    $MmprojArg = @('--mmproj-auto', '--mmproj-offload')
+    $FitTarget = "1536"
+    Write-Host "-> Vision mode enabled. The projector will use the Hugging Face cache."
 } elseif ($MMPROJ_FILENAME -ne "NONE") {
     $MmprojPath = Join-Path $ModelDir $MMPROJ_FILENAME
     Download-File -Url $MMPROJ_URL -Destination $MmprojPath -Label "Vision Projector"
@@ -121,7 +140,7 @@ $EffectiveCacheTypeV = 'q8_0'
 $Env:LLAMA_SET_ROWS = '1'
 $Env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"preserve_thinking":true}'
 
-$Args = @('--model', $ModelFile)
+$Args = $ModelArgs
 $Args += $MmprojArg
 $Args += @(
     '--alias',             $MODEL_ALIAS,
@@ -141,6 +160,7 @@ $Args += @(
     '--top-k',             '20',
     '--min-p',             '0.0',
     '--presence-penalty',  '0.0',
+    '--reasoning-preserve',
     '--spec-type',         'ngram-map-k',
     '--spec-ngram-map-k-size-n', '16',
     '--spec-draft-n-min',  '12',
