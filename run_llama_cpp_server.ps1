@@ -77,6 +77,23 @@ function Download-File {
     return $true
 }
 
+function Resolve-HfFile {
+    param([string]$Repo, [string]$File)
+    $hf = Get-Command hf -ErrorAction SilentlyContinue
+    if ($null -eq $hf) { return $null }
+
+    Write-Host "-> Downloading or resolving with Hugging Face Xet: $Repo / $File"
+    $output = @(& $hf.Source download $Repo $File)
+    if ($LASTEXITCODE -ne 0) { throw "hf download failed for '$Repo/$File'." }
+    $path = [string]($output | Select-Object -Last 1)
+    $path = $path.Trim()
+    if ($path.StartsWith('path=')) { $path = $path.Substring(5) }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "hf did not return a valid file path: '$path'."
+    }
+    return (Resolve-Path -LiteralPath $path).Path
+}
+
 if ([string]::IsNullOrWhiteSpace($MODEL_HF_REPO) -or $MODEL_HF_REPO -eq 'NONE') {
     $LocalModel = $true
 }
@@ -97,13 +114,20 @@ if ($LocalModel -and $MODEL_SHARDS -gt 1) {
     Download-File -Url $MODEL_URL -Destination $ModelFile -Label "Model"
     $ModelArgs = @('--model', $ModelFile)
 } else {
-    $ModelArgs = @('--hf-repo', $MODEL_HF_REPO, '--hf-file', $MODEL_HF_FILE)
+    $CachedModel = Resolve-HfFile -Repo $MODEL_HF_REPO -File $MODEL_HF_FILE
+    if ($null -ne $CachedModel) {
+        $ModelArgs = @('--model', $CachedModel)
+        $HfCliActive = $true
+        Write-Host "-> Model source: Hugging Face Xet cache ($CachedModel)"
+    } else {
+        $ModelArgs = @('--hf-repo', $MODEL_HF_REPO, '--hf-file', $MODEL_HF_FILE)
+        $HfCliActive = $false
+        Write-Host "-> 'hf' CLI not found; using llama.cpp's built-in downloader."
+    }
 }
 
 if ($LocalModel) {
     Write-Host "-> Model source: local fallback ($ModelFile)"
-} else {
-    Write-Host "-> Model source: Hugging Face cache ($MODEL_HF_REPO / $MODEL_HF_FILE)"
 }
 
 # Vision Projector
@@ -113,7 +137,13 @@ if ($TextOnly) {
     Write-Host "-> Text-only mode enabled. Skipping vision projector and using FIT_TARGET=$FitTarget"
     if (-not $LocalModel) { $MmprojArg = @('--no-mmproj') }
 } elseif (-not $LocalModel -and $MMPROJ_FILENAME -ne "NONE") {
-    $MmprojArg = @('--mmproj-auto', '--mmproj-offload')
+    if ($HfCliActive -and $MMPROJ_URL -like 'https://huggingface.co/*') {
+        $MmprojHfFile = [System.IO.Path]::GetFileName(([Uri]$MMPROJ_URL).AbsolutePath)
+        $CachedMmproj = Resolve-HfFile -Repo $MODEL_HF_REPO -File $MmprojHfFile
+        $MmprojArg = @('--mmproj', $CachedMmproj, '--mmproj-offload')
+    } else {
+        $MmprojArg = @('--mmproj-auto', '--mmproj-offload')
+    }
     $FitTarget = "1536"
     Write-Host "-> Vision mode enabled. The projector will use the Hugging Face cache."
 } elseif ($MMPROJ_FILENAME -ne "NONE") {

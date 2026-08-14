@@ -76,6 +76,11 @@ To pre-download the recommended GGUF with Hugging Face's resumable Xet downloade
 hf download unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-IQ3_XXS.gguf
 ```
 
+If `hf` is installed, the launchers run this step automatically and pass the resolved cache file to `llama-server`. Without it, they fall back to `llama.cpp`'s built-in downloader. Install the official CLI with:
+```bash
+curl -LsSf https://hf.co/cli/install.sh | bash
+```
+
 ---
 
 ## Quick Start (Windows)
@@ -107,6 +112,11 @@ Use `-Vision` for multimodal input or `-LocalModel` to use the legacy `models/` 
 The model can also be downloaded into the shared cache before starting the server:
 ```powershell
 hf download unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-IQ3_XXS.gguf
+```
+
+The PowerShell launchers use `hf download` automatically when the CLI is available, including for the optional vision projector. Install the official CLI once if `hf --help` is not recognized:
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://hf.co/cli/install.ps1 | iex"
 ```
 
 ---

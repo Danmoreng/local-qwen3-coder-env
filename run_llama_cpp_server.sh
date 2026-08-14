@@ -65,6 +65,18 @@ download_file() {
     fi
 }
 
+resolve_hf_file() {
+    local repo=$1
+    local file=$2
+    local output path
+    echo "-> Downloading or resolving with Hugging Face Xet: $repo / $file" >&2
+    output=$(hf download "$repo" "$file") || return 1
+    path=$(printf '%s\n' "$output" | tail -n 1)
+    path=${path#path=}
+    [[ -f "$path" ]] || { echo "Error: hf did not return a valid file path: $path" >&2; return 1; }
+    printf '%s\n' "$path"
+}
+
 if [[ -z "$MODEL_HF_REPO" || "$MODEL_HF_REPO" == "NONE" ]]; then
     LOCAL_MODEL=1
 fi
@@ -93,8 +105,16 @@ if [[ "$LOCAL_MODEL" -eq 1 ]]; then
     MODEL_ARGS=(--model "$MODEL_FILE")
     echo "-> Model source: local fallback ($MODEL_FILE)"
 else
-    MODEL_ARGS=(--hf-repo "$MODEL_HF_REPO" --hf-file "$MODEL_HF_FILE")
-    echo "-> Model source: Hugging Face cache ($MODEL_HF_REPO / $MODEL_HF_FILE)"
+    if command -v hf >/dev/null 2>&1; then
+        MODEL_FILE=$(resolve_hf_file "$MODEL_HF_REPO" "$MODEL_HF_FILE")
+        MODEL_ARGS=(--model "$MODEL_FILE")
+        HF_CLI_ACTIVE=1
+        echo "-> Model source: Hugging Face Xet cache ($MODEL_FILE)"
+    else
+        MODEL_ARGS=(--hf-repo "$MODEL_HF_REPO" --hf-file "$MODEL_HF_FILE")
+        HF_CLI_ACTIVE=0
+        echo "-> 'hf' CLI not found; using llama.cpp's built-in downloader."
+    fi
 fi
 
 # Vision Model Handling
@@ -106,7 +126,13 @@ if [[ "$TEXT_ONLY" -eq 1 ]]; then
         MMPROJ_ARGS=(--no-mmproj)
     fi
 elif [[ "$LOCAL_MODEL" -eq 0 && "$MMPROJ_FILENAME" != "NONE" ]]; then
-    MMPROJ_ARGS=(--mmproj-auto --mmproj-offload)
+    if [[ "${HF_CLI_ACTIVE:-0}" -eq 1 && "$MMPROJ_URL" == https://huggingface.co/* ]]; then
+        MMPROJ_HF_FILE=$(basename "${MMPROJ_URL%%\?*}")
+        MMPROJ_PATH=$(resolve_hf_file "$MODEL_HF_REPO" "$MMPROJ_HF_FILE")
+        MMPROJ_ARGS=(--mmproj "$MMPROJ_PATH" --mmproj-offload)
+    else
+        MMPROJ_ARGS=(--mmproj-auto --mmproj-offload)
+    fi
     FIT_TARGET="1536"
     echo "-> Vision mode enabled. The projector will use the Hugging Face cache."
 elif [[ "$MMPROJ_FILENAME" != "NONE" ]]; then
