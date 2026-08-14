@@ -9,6 +9,8 @@ if (-not (Test-Path $ModelDir)) {
 
 # 1. Define Known Models
 $KnownModels = @(
+    @{ Name = "Qwen3.8-27B (Dense) - UD-IQ3_XXS (16GB recommended)"; Url = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ3_XXS.gguf"; Alias = "unsloth/Qwen3.8-27B-UD-IQ3_XXS"; Ctx = 65536; Filename = "Qwen3.8-27B-UD-IQ3_XXS.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.8-27B.gguf"; Shards = 1 },
+    @{ Name = "Qwen3.8-27B (Dense) - UD-Q3_K_XL (quality)"; Url = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q3_K_XL.gguf"; Alias = "unsloth/Qwen3.8-27B-UD-Q3_K_XL"; Ctx = 65536; Filename = "Qwen3.8-27B-UD-Q3_K_XL.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.8-27B.gguf"; Shards = 1 },
     @{ Name = "Qwen3.6-27B (Dense) - UD-Q3_K_XL";    Url = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-UD-Q3_K_XL.gguf";    Alias = "unsloth/Qwen3.6-27B-UD-Q3_K_XL";    Ctx = 65536; Filename = "Qwen3.6-27B-UD-Q3_K_XL.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.6-27B.gguf"; Shards = 1 },
     @{ Name = "Qwen3.6-27B (Dense) - UD-IQ3_XXS";    Url = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-UD-IQ3_XXS.gguf";    Alias = "unsloth/Qwen3.6-27B-UD-IQ3_XXS";    Ctx = 65536; Filename = "Qwen3.6-27B-UD-IQ3_XXS.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.6-27B.gguf"; Shards = 1 },
     @{ Name = "Qwen3.6-35B-A3B (MoE) - UD-Q4_K_M";   Url = "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf";   Alias = "unsloth/Qwen3.6-35B-A3B-UD-Q4_K_M";   Ctx = 32768; Filename = "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"; MmprojUrl = "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/mmproj-BF16.gguf"; MmprojFilename = "mmproj-Qwen3.6-35B.gguf"; Shards = 1 },
@@ -73,12 +75,24 @@ if ($index -ge 0 -and $index -lt $AllOptions.Count) {
         }
     }
 
+    $HfRepo = "NONE"
+    $HfFile = "NONE"
+    if ($Selected.Url -match '^https://huggingface\.co/([^/]+/[^/]+)/resolve/[^/]+/(.+)$') {
+        $HfRepo = $Matches[1]
+        $HfFile = $Matches[2]
+        if ($Selected.Shards -gt 1) {
+            $HfFile = "$HfFile-00001-of-$($Selected.Shards.ToString('00000')).gguf"
+        }
+    }
+
     $Config = [pscustomobject]@{
         MODEL_NAME       = $Selected.Name
         MODEL_URL        = $Selected.Url
         MODEL_ALIAS      = $Selected.Alias
         MODEL_CTX        = $Selected.Ctx
         MODEL_FILENAME   = $Selected.Filename
+        MODEL_HF_REPO    = $HfRepo
+        MODEL_HF_FILE    = $HfFile
         MMPROJ_URL       = $Selected.MmprojUrl
         MMPROJ_FILENAME  = $Selected.MmprojFilename
         MODEL_SHARDS     = $Selected.Shards

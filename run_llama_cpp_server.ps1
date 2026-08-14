@@ -5,7 +5,8 @@
 #>
 
 param(
-    [switch]$TextOnly
+    [switch]$TextOnly,
+    [switch]$LocalModel
 )
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -41,6 +42,8 @@ $MODEL_URL       = Get-ConfigValue -Config $Config -Primary 'MODEL_URL' -Fallbac
 $MODEL_ALIAS     = Get-ConfigValue -Config $Config -Primary 'MODEL_ALIAS' -Fallback 'Alias'
 $MODEL_CTX       = Get-ConfigValue -Config $Config -Primary 'MODEL_CTX' -Fallback 'Ctx'
 $MODEL_FILENAME  = Get-ConfigValue -Config $Config -Primary 'MODEL_FILENAME' -Fallback 'Filename'
+$MODEL_HF_REPO   = Get-ConfigValue -Config $Config -Primary 'MODEL_HF_REPO' -Fallback 'HfRepo'
+$MODEL_HF_FILE   = Get-ConfigValue -Config $Config -Primary 'MODEL_HF_FILE' -Fallback 'HfFile'
 $MMPROJ_URL      = Get-ConfigValue -Config $Config -Primary 'MMPROJ_URL' -Fallback 'MmprojUrl'
 $MMPROJ_FILENAME = Get-ConfigValue -Config $Config -Primary 'MMPROJ_FILENAME' -Fallback 'MmprojFilename'
 $MODEL_SHARDS    = Get-ConfigValue -Config $Config -Primary 'MODEL_SHARDS' -Fallback 'Shards'
@@ -74,8 +77,12 @@ function Download-File {
     return $true
 }
 
-# Handle Shards or Single File
-if ($MODEL_SHARDS -gt 1) {
+if ([string]::IsNullOrWhiteSpace($MODEL_HF_REPO) -or $MODEL_HF_REPO -eq 'NONE') {
+    $LocalModel = $true
+}
+
+$ModelArgs = @()
+if ($LocalModel -and $MODEL_SHARDS -gt 1) {
     for ($i = 1; $i -le $MODEL_SHARDS; $i++) {
         $shardSuffix = "-$($i.ToString('00000'))-of-$($MODEL_SHARDS.ToString('00000')).gguf"
         $shardFilename = "${MODEL_FILENAME}${shardSuffix}"
@@ -84,9 +91,19 @@ if ($MODEL_SHARDS -gt 1) {
         Download-File -Url $shardUrl -Destination $shardPath -Label "Shard $i/$MODEL_SHARDS"
     }
     $ModelFile = Join-Path $ModelDir ("${MODEL_FILENAME}-00001-of-$($MODEL_SHARDS.ToString('00000')).gguf")
-} else {
+    $ModelArgs = @('--model', $ModelFile)
+} elseif ($LocalModel) {
     $ModelFile = Join-Path $ModelDir $MODEL_FILENAME
     Download-File -Url $MODEL_URL -Destination $ModelFile -Label "Model"
+    $ModelArgs = @('--model', $ModelFile)
+} else {
+    $ModelArgs = @('--hf-repo', $MODEL_HF_REPO, '--hf-file', $MODEL_HF_FILE)
+}
+
+if ($LocalModel) {
+    Write-Host "-> Model source: local fallback ($ModelFile)"
+} else {
+    Write-Host "-> Model source: Hugging Face cache ($MODEL_HF_REPO / $MODEL_HF_FILE)"
 }
 
 # Vision Projector
@@ -94,6 +111,11 @@ $MmprojArg = @()
 $FitTarget = "256"
 if ($TextOnly) {
     Write-Host "-> Text-only mode enabled. Skipping vision projector and using FIT_TARGET=$FitTarget"
+    if (-not $LocalModel) { $MmprojArg = @('--no-mmproj') }
+} elseif (-not $LocalModel -and $MMPROJ_FILENAME -ne "NONE") {
+    $MmprojArg = @('--mmproj-auto', '--mmproj-offload')
+    $FitTarget = "1536"
+    Write-Host "-> Vision mode enabled. The projector will use the Hugging Face cache."
 } elseif ($MMPROJ_FILENAME -ne "NONE") {
     $MmprojPath = Join-Path $ModelDir $MMPROJ_FILENAME
     Download-File -Url $MMPROJ_URL -Destination $MmprojPath -Label "Vision Projector"
@@ -114,7 +136,12 @@ $TopK    = '40'
 $MinP    = '0.01'
 $PresPen = '0.0'
 
-if ($MODEL_NAME -match 'Qwen3\.(5|6)') {
+if ($MODEL_NAME -match 'Qwen3\.8') {
+    $Temp    = '1.0'
+    $TopK    = '20'
+    $MinP    = '0.0'
+    Write-Host "-> Qwen 3.8 detected. Applying official thinking-mode sampling parameters."
+} elseif ($MODEL_NAME -match 'Qwen3\.(5|6)') {
     # Optimized for Qwen 3.5 / 3.6 reasoning models
     $Temp    = '0.6'
     $TopK    = '20'
@@ -124,8 +151,14 @@ if ($MODEL_NAME -match 'Qwen3\.(5|6)') {
     Write-Host "-> Qwen 3 Coder detected. Applying standard coding sampling parameters."
 }
 
-if ($MODEL_NAME -match 'Qwen3\.6') {
+$ReasoningArgs = @()
+if ($MODEL_NAME -match 'Qwen3\.8') {
+    $Env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"enable_thinking":true,"preserve_thinking":true,"reasoning_effort":"xhigh"}'
+    $ReasoningArgs = @('--reasoning-preserve')
+    Write-Host "-> Qwen 3.8 detected. Enabling preserved thinking with xhigh reasoning effort."
+} elseif ($MODEL_NAME -match 'Qwen3\.6') {
     $Env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"preserve_thinking":true}'
+    $ReasoningArgs = @('--reasoning-preserve')
     Write-Host "-> Qwen 3.6 detected. Enabling preserve_thinking in the chat template."
 } else {
     Remove-Item Env:LLAMA_CHAT_TEMPLATE_KWARGS -ErrorAction SilentlyContinue
@@ -135,8 +168,9 @@ if ($MODEL_NAME -match 'Qwen3\.6') {
 $BatchSize = '1024'
 $UBatchSize = '512'
 
-$Args = @('--model', $ModelFile)
+$Args = $ModelArgs
 $Args += $MmprojArg
+$Args += $ReasoningArgs
 $Args += @(
     '--alias',             $MODEL_ALIAS,
     '--fit',               'on',
@@ -154,7 +188,8 @@ $Args += @(
     '--top-p',             $TopP,
     '--top-k',             $TopK,
     '--min-p',             $MinP,
-    '--presence-penalty',  $PresPen
+    '--presence-penalty',  $PresPen,
+    '--repeat-penalty',    '1.0'
 )
 
 Write-Host "-> Starting llama-server for $MODEL_NAME on http://localhost:8080 ..."

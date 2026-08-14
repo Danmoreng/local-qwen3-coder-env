@@ -7,9 +7,14 @@ set -e
 # Optimized for text-only, maximum context, and high performance.
 
 TEXT_ONLY=1 # Default to text-only for VRAM efficiency
-if [[ "${1:-}" == "--vision" ]]; then
-    TEXT_ONLY=0
-fi
+LOCAL_MODEL=0
+for arg in "$@"; do
+    case "$arg" in
+        --vision) TEXT_ONLY=0 ;;
+        --local-model) LOCAL_MODEL=1 ;;
+        *) echo "Usage: ./run_qwen3_6_optimized.sh [--vision] [--local-model]"; exit 1 ;;
+    esac
+done
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 SERVER_EXE="$SCRIPT_DIR/vendor/llama.cpp/build/bin/llama-server"
@@ -39,6 +44,8 @@ MODEL_URL=$(get_json_val "MODEL_URL")
 MODEL_ALIAS=$(get_json_val "MODEL_ALIAS")
 MODEL_CTX=$(get_json_val "MODEL_CTX")
 MODEL_FILENAME=$(get_json_val "MODEL_FILENAME")
+MODEL_HF_REPO=$(get_json_val "MODEL_HF_REPO" || true)
+MODEL_HF_FILE=$(get_json_val "MODEL_HF_FILE" || true)
 MMPROJ_URL=$(get_json_val "MMPROJ_URL")
 MMPROJ_FILENAME=$(get_json_val "MMPROJ_FILENAME")
 MODEL_SHARDS=$(get_json_val "MODEL_SHARDS")
@@ -64,22 +71,39 @@ download_file() {
     fi
 }
 
-# Download Model
-MODEL_FILE="$MODEL_DIR/$MODEL_FILENAME"
-if [ ! -f "$MODEL_FILE" ]; then
-    echo "-> Model not found: $MODEL_NAME"
-    download_file "$MODEL_URL" "$MODEL_FILE"
+# Use llama.cpp's shared Hugging Face cache unless this is a local/custom model.
+if [[ -z "$MODEL_HF_REPO" || "$MODEL_HF_REPO" == "NONE" ]]; then
+    LOCAL_MODEL=1
+fi
+
+MODEL_ARGS=()
+if [[ "$LOCAL_MODEL" -eq 1 ]]; then
+    MODEL_FILE="$MODEL_DIR/$MODEL_FILENAME"
+    if [ ! -f "$MODEL_FILE" ]; then
+        echo "-> Local model not found: $MODEL_NAME"
+        download_file "$MODEL_URL" "$MODEL_FILE"
+    fi
+    MODEL_ARGS=(--model "$MODEL_FILE")
+    echo "-> Model source: local fallback ($MODEL_FILE)"
+else
+    MODEL_ARGS=(--hf-repo "$MODEL_HF_REPO" --hf-file "$MODEL_HF_FILE")
+    echo "-> Model source: Hugging Face cache ($MODEL_HF_REPO / $MODEL_HF_FILE)"
 fi
 
 # Vision Model Handling
-MMPROJ_ARG=""
-if [[ "$TEXT_ONLY" -eq 0 && "$MMPROJ_FILENAME" != "NONE" ]]; then
+MMPROJ_ARGS=()
+if [[ "$TEXT_ONLY" -eq 1 && "$LOCAL_MODEL" -eq 0 ]]; then
+    MMPROJ_ARGS=(--no-mmproj)
+elif [[ "$TEXT_ONLY" -eq 0 && "$LOCAL_MODEL" -eq 0 && "$MMPROJ_FILENAME" != "NONE" ]]; then
+    MMPROJ_ARGS=(--mmproj-auto --mmproj-offload)
+    echo "-> Vision mode enabled. The projector will use the Hugging Face cache."
+elif [[ "$TEXT_ONLY" -eq 0 && "$MMPROJ_FILENAME" != "NONE" ]]; then
     MMPROJ_PATH="$MODEL_DIR/$MMPROJ_FILENAME"
     if [ ! -f "$MMPROJ_PATH" ] && [[ "$MMPROJ_URL" != "NONE" ]]; then
         download_file "$MMPROJ_URL" "$MMPROJ_PATH"
     fi
     if [ -f "$MMPROJ_PATH" ]; then
-        MMPROJ_ARG="--mmproj $MMPROJ_PATH --mmproj-offload"
+        MMPROJ_ARGS=(--mmproj "$MMPROJ_PATH" --mmproj-offload)
         echo "-> Vision mode enabled. (Caution: Higher VRAM usage)"
     fi
 fi
@@ -103,8 +127,8 @@ echo "-> Starting OPTIMIZED llama-server for $MODEL_NAME"
 echo "-> VRAM Target: 16GB | Mode: $([[ $TEXT_ONLY -eq 1 ]] && echo "Text-Only" || echo "Vision")"
 
 "$SERVER_EXE" \
-    --model "$MODEL_FILE" \
-    $MMPROJ_ARG \
+    "${MODEL_ARGS[@]}" \
+    "${MMPROJ_ARGS[@]}" \
     --alias "$MODEL_ALIAS" \
     --fit on \
     --fit-target 256 \
@@ -119,5 +143,6 @@ echo "-> VRAM Target: 16GB | Mode: $([[ $TEXT_ONLY -eq 1 ]] && echo "Text-Only" 
     --temp "$TEMP" \
     --top-k "$TOP_K" \
     --min-p "$MIN_P" \
+    --reasoning-preserve \
     --host 0.0.0.0 \
     --port 8080

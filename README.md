@@ -1,16 +1,16 @@
 # Local Qwen Environment
 
-A streamlined set of scripts for running **Qwen3-Coder**, **Qwen3.5**, and **Qwen3.6** models locally with tuned `llama.cpp` launcher defaults for coding workflows on Windows and Linux.
-
-Temporary CUDA policy: CUDA `13.2` is avoided due to a quantized-model issue in `llama.cpp`. The Windows installer excludes it from automatic selection, and the Linux installer stops with a warning if `nvcc 13.2` is active. Newer compatible releases are picked automatically on Windows once they are available.
+A streamlined set of scripts for running **Qwen3-Coder**, **Qwen3.5**, **Qwen3.6**, and **Qwen3.8** models locally with tuned `llama.cpp` launcher defaults for coding workflows on Windows and Linux.
 
 If you only want a focused `llama.cpp` source build/install flow (without Qwen-specific model/agent setup), use the simpler companion repo: [Danmoreng/llama.cpp-installer](https://github.com/Danmoreng/llama.cpp-installer).
 
 ## Features
 
-- **Modular Model Selection**: Choose between various Qwen3-Coder, Qwen3.5, and Qwen3.6 variants, including the added **Qwen3.6 35B** preset models.
-- **27B Presets & Launcher**: Includes **Qwen3.6-27B** presets and a dedicated Windows launcher (`run_qwen3_6_27b_optimized.ps1`) for 16GB-class text-first setups.
-- **Vision Model Support**: Full multimodal support for the **Qwen 3.5 / 3.6** families. The environment automatically manages the necessary vision projectors (`mmproj`).
+- **Modular Model Selection**: Choose between Qwen3-Coder, Qwen3.5, Qwen3.6, and Qwen3.8 variants.
+- **Qwen3.8 27B Launcher**: Dedicated Linux and Windows launchers tuned for `Qwen3.8-27B-UD-IQ3_XXS` on 16GB-class GPUs.
+- **Integrated MTP Drafting**: Uses Qwen3.8's built-in MTP layer through `--spec-type draft-mtp`; no separate draft model is required.
+- **Central Model Cache**: Hugging Face presets use the standard shared Hugging Face cache instead of duplicating files inside the repository.
+- **Vision Model Support**: Full multimodal support for the Qwen 3.5, 3.6, and 3.8 families, including automatic cached `mmproj` downloads.
 - **Auto-Detection**: Automatically detects any `.gguf` files placed in the `models/` directory.
 - **Optimized Performance**: Pre-configured with flags for Flash Attention, KV-cache quantization, `--no-mmap`, `-ub 512`, and MoE-aware fitting defaults.
 - **Cross-Platform**: Full support for Linux (CUDA/Vulkan) and Windows (CUDA).
@@ -64,6 +64,18 @@ For text-only benchmarking or A/B testing on multimodal presets:
 ./run_llama_cpp_server_vulkan.sh --text-only
 ```
 
+The recommended 16GB Qwen3.8 launcher is:
+```bash
+./run_qwen3_8_optimized.sh
+```
+
+Add `--vision` for multimodal input or `--local-model` to use the legacy `models/` directory instead of the shared cache. The older optimized Qwen3.6 Linux launcher accepts the same flags.
+
+To pre-download the recommended GGUF with Hugging Face's resumable Xet downloader:
+```bash
+hf download unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-IQ3_XXS.gguf
+```
+
 ---
 
 ## Quick Start (Windows)
@@ -83,6 +95,18 @@ Start the server:
 For text-only benchmarking or A/B testing on multimodal presets, start the server with:
 ```powershell
 ./run_llama_cpp_server.ps1 -TextOnly
+```
+
+For the recommended 16GB Qwen3.8-27B profile:
+```powershell
+.\run_qwen3_8_optimized.ps1
+```
+
+Use `-Vision` for multimodal input or `-LocalModel` to use the legacy `models/` directory. The optimized Qwen3.6 Windows launcher accepts these flags as well.
+
+The model can also be downloaded into the shared cache before starting the server:
+```powershell
+hf download unsloth/Qwen3.8-27B-GGUF Qwen3.8-27B-UD-IQ3_XXS.gguf
 ```
 
 For the dedicated 16GB GPU Qwen3.6-27B launcher:
@@ -116,6 +140,18 @@ Examples:
 
 ## Custom Models & Vision
 
+### Model storage
+
+Known Hugging Face presets are downloaded by `llama.cpp` into the shared Hugging Face cache. The cache location follows this precedence:
+
+1. `LLAMA_CACHE`
+2. `HF_HUB_CACHE` or `HUGGINGFACE_HUB_CACHE`
+3. `$HF_HOME/hub`
+4. `$XDG_CACHE_HOME/huggingface/hub`
+5. `~/.cache/huggingface/hub`
+
+This allows `llama.cpp`, Hugging Face tools, and other local projects to reuse the same files. To force a known preset to use `models/`, add `--local-model` on Linux or `-LocalModel` on Windows.
+
 To use a custom model not listed in the presets:
 1. Place your `.gguf` file in the `models/` directory.
 2. Run `./select_model.sh`.
@@ -129,9 +165,31 @@ To use a custom model not listed in the presets:
 
 The launchers default to a single server slot with `-np 1`, which reduces recurrent-state overhead for single-user local coding setups. Text loads use `--fit-target 256`; vision loads switch to `--fit-target 1536` when an `mmproj` is active. The `--fit-ctx` value is the minimum context floor that `--fit` is allowed to keep, not a hard fixed runtime context.
 
-For `Qwen3.6` presets, the launchers also set `LLAMA_CHAT_TEMPLATE_KWARGS='{"preserve_thinking":true}'` automatically so the model keeps prior reasoning in template context across turns without shell-quoting issues.
+For `Qwen3.6` presets, the launchers set `preserve_thinking=true`. Qwen3.8 additionally enables thinking and sets `reasoning_effort=xhigh` through the chat-template arguments because current `llama.cpp` does not forward all top-level OpenAI `reasoning_effort` values to model templates. Both families also use `--reasoning-preserve` so reasoning traces remain available across the full conversation history.
 
-The dedicated Windows `Qwen3.6-27B` launcher (`run_qwen3_6_27b_optimized.ps1`) also enables speculative decoding defaults with `--spec-default` by default.
+The dedicated Windows `Qwen3.6-27B` launcher (`run_qwen3_6_27b_optimized.ps1`) uses `ngram-map-k` speculative decoding by default.
+
+### Recommended Qwen3.8-27B profile
+
+The dedicated `run_qwen3_8_optimized` launchers use the following profile on both Linux and Windows:
+
+| Setting | Value |
+| --- | --- |
+| Model | [`unsloth/Qwen3.8-27B-GGUF`](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF) |
+| Quantization | `Qwen3.8-27B-UD-IQ3_XXS.gguf` (about 11.9 GB) |
+| Context floor | `65536` tokens via `--fit-ctx 65536` |
+| GPU memory fitting | `--fit on`, text headroom `256` MiB, vision headroom `1536` MiB |
+| Prompt batches | `-b 1024 -ub 512` |
+| KV cache | `-ctk q8_0 -ctv q8_0` |
+| Parallel slots | `-np 1` |
+| Attention | `--flash-attn on` |
+| Sampling | temperature `1.0`, top-p `0.95`, top-k `20`, min-p `0.0` |
+| Penalties | presence `0.0`, repetition `1.0` |
+| Thinking | enabled, preserved, `reasoning_effort=xhigh` |
+| Speculative decoding | integrated MTP via `--spec-type draft-mtp` |
+| API endpoint | `http://localhost:8080/v1` |
+
+The 64K value is a practical minimum context target for a 16GB GPU, not the model's architectural maximum. `llama.cpp --fit` may adjust the effective GPU placement and context according to available memory. Vision is opt-in on the dedicated launcher because its BF16 projector requires additional VRAM.
 
 ---
 
@@ -146,6 +204,7 @@ When you start the server, it detects the model type and applies these settings:
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Qwen 3 Coder** | **Standard Coding** | 1.0 | 0.95 | 40 | 0.01 |
 | **Qwen 3.5 / 3.6** | **Thinking: Precise Coding** | 0.6 | 0.95 | 20 | 0.0 |
+| **Qwen 3.8** | **Thinking** | 1.0 | 0.95 | 20 | 0.0 |
 
 ### Alternative Qwen 3.5 / 3.6 Recommendations
 For non-coding tasks with the **Qwen 3.5 / 3.6** series, you may manually adjust parameters in the server or UI:
@@ -181,7 +240,9 @@ llama-server \
     --temp <0.6 or 1.0> \
     --top-p 0.95 \
     --top-k <20 or 40> \
-    --min-p <0.0 or 0.01>
+    --min-p <0.0 or 0.01> \
+    [--reasoning-preserve] \
+    [--spec-type draft-mtp]
 ```
 
 | Optimization | Purpose | Details |
@@ -193,13 +254,15 @@ llama-server \
 | **No `mmap`** | More stable host/GPU balance | Enabled in the Windows launcher for large text-model loads. |
 | **Larger UBatch** | Higher prompt throughput | `-ub 512` increases prompt-processing throughput in the Windows launcher. |
 | **Context Fitting** | Dynamic memory fitting | `--fit-target` reserves per-device headroom, and `--fit-ctx` defines the minimum context floor used by `--fit`. |
+| **MTP Drafting** | Faster Qwen3.8 generation | Uses the model's integrated next-token prediction layer and reports draft acceptance in the server timing log. |
 | **Dynamic Sampling** | Model-specific defaults | Applies coding-oriented defaults for Qwen 3 Coder and precise-coding defaults for Qwen 3.5 / 3.6. |
 | **MoE Support** | Better large-model handling | Uses launcher defaults that work well with Qwen Mixture-of-Experts models. |
 
 ## Project Structure
 
 - `vendor/llama.cpp/`: The engine powering the local inference.
-- `models/`: Storage for GGUF model files and vision projectors.
+- Shared Hugging Face cache: primary storage for known remote presets.
+- `models/`: Optional fallback storage for local GGUF files and vision projectors.
 - `select_model.sh` / `select_model.ps1`: Interactive configuration tool.
 
 ## Acknowledgments
