@@ -35,6 +35,23 @@ function Download-File {
     }
 }
 
+function Resolve-HfFile {
+    param([string]$Repo, [string]$File)
+    $hf = Get-Command hf -ErrorAction SilentlyContinue
+    if ($null -eq $hf) { return $null }
+
+    Write-Host "-> Downloading or resolving with Hugging Face Xet: $Repo / $File"
+    $output = @(& $hf.Source download $Repo $File)
+    if ($LASTEXITCODE -ne 0) { throw "hf download failed for '$Repo/$File'." }
+    $path = [string]($output | Select-Object -Last 1)
+    $path = $path.Trim()
+    if ($path.StartsWith('path=')) { $path = $path.Substring(5) }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "hf did not return a valid file path: '$path'."
+    }
+    return (Resolve-Path -LiteralPath $path).Path
+}
+
 $ModelArgs = @()
 $MmprojArgs = @()
 $FitTarget = '256'
@@ -51,10 +68,21 @@ if ($LocalModel) {
         $FitTarget = '1536'
     }
 } else {
-    $ModelArgs = @('--hf-repo', $ModelHfRepo, '--hf-file', $ModelHfFile)
-    Write-Host "-> Model source: central Hugging Face cache ($ModelHfRepo / $ModelHfFile)"
+    $CachedModel = Resolve-HfFile -Repo $ModelHfRepo -File $ModelHfFile
+    if ($null -ne $CachedModel) {
+        $ModelArgs = @('--model', $CachedModel)
+        Write-Host "-> Model source: Hugging Face Xet cache ($CachedModel)"
+    } else {
+        $ModelArgs = @('--hf-repo', $ModelHfRepo, '--hf-file', $ModelHfFile)
+        Write-Host "-> 'hf' CLI not found; using llama.cpp's built-in downloader."
+    }
     if ($Vision) {
-        $MmprojArgs = @('--mmproj-auto', '--mmproj-offload')
+        $CachedMmproj = Resolve-HfFile -Repo $ModelHfRepo -File 'mmproj-BF16.gguf'
+        if ($null -ne $CachedMmproj) {
+            $MmprojArgs = @('--mmproj', $CachedMmproj, '--mmproj-offload')
+        } else {
+            $MmprojArgs = @('--mmproj-auto', '--mmproj-offload')
+        }
         $FitTarget = '1536'
     } else {
         $MmprojArgs = @('--no-mmproj')

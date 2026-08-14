@@ -44,6 +44,18 @@ download_file() {
     fi
 }
 
+resolve_hf_file() {
+    local repo=$1
+    local file=$2
+    local output path
+    echo "-> Downloading or resolving with Hugging Face Xet: $repo / $file" >&2
+    output=$(hf download "$repo" "$file") || return 1
+    path=$(printf '%s\n' "$output" | tail -n 1)
+    path=${path#path=}
+    [[ -f "$path" ]] || { echo "Error: hf did not return a valid file path: $path" >&2; return 1; }
+    printf '%s\n' "$path"
+}
+
 MODEL_ARGS=()
 MMPROJ_ARGS=()
 FIT_TARGET=256
@@ -60,10 +72,21 @@ if [[ "$LOCAL_MODEL" -eq 1 ]]; then
         FIT_TARGET=1536
     fi
 else
-    MODEL_ARGS=(--hf-repo "$MODEL_HF_REPO" --hf-file "$MODEL_HF_FILE")
-    echo "-> Model source: central Hugging Face cache ($MODEL_HF_REPO / $MODEL_HF_FILE)"
+    if command -v hf >/dev/null 2>&1; then
+        MODEL_FILE=$(resolve_hf_file "$MODEL_HF_REPO" "$MODEL_HF_FILE")
+        MODEL_ARGS=(--model "$MODEL_FILE")
+        echo "-> Model source: Hugging Face Xet cache ($MODEL_FILE)"
+    else
+        MODEL_ARGS=(--hf-repo "$MODEL_HF_REPO" --hf-file "$MODEL_HF_FILE")
+        echo "-> 'hf' CLI not found; using llama.cpp's built-in downloader."
+    fi
     if [[ "$VISION" -eq 1 ]]; then
-        MMPROJ_ARGS=(--mmproj-auto --mmproj-offload)
+        if command -v hf >/dev/null 2>&1; then
+            MMPROJ_FILE=$(resolve_hf_file "$MODEL_HF_REPO" "mmproj-BF16.gguf")
+            MMPROJ_ARGS=(--mmproj "$MMPROJ_FILE" --mmproj-offload)
+        else
+            MMPROJ_ARGS=(--mmproj-auto --mmproj-offload)
+        fi
         FIT_TARGET=1536
     else
         MMPROJ_ARGS=(--no-mmproj)
