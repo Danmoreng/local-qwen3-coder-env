@@ -1,0 +1,234 @@
+# Qwen3.8-27B with llama.cpp and Pi on a 16GB NVIDIA GPU
+
+This guide sets up Qwen3.8-27B as a fully local coding agent on Windows. The recommended path uses this repository's tuned llama.cpp build and launcher together with Hugging Face's [`pi-llama`](https://github.com/huggingface/pi-llama) extension for [Pi](https://pi.dev/).
+
+The official [llama.app](https://llama.app/) is also covered as a simpler prebuilt alternative. It installs the unified `llama` executable: `llama serve` and `llama-server` expose the same server functionality.
+
+## Recommended configuration
+
+The 16GB profile is intentionally text-first and single-user:
+
+| Component | Choice |
+| --- | --- |
+| Model | `unsloth/Qwen3.8-27B-GGUF` |
+| GGUF | `Qwen3.8-27B-UD-IQ3_XXS.gguf` (about 11.9 GB) |
+| Context floor | 65,536 tokens |
+| KV cache | Q8 for keys and values |
+| Server slots | 1 |
+| Prompt batch / micro-batch | 1024 / 512 |
+| Attention | Flash Attention |
+| Drafting | Integrated MTP (`draft-mtp`) |
+| Vision | Off unless explicitly needed |
+| Local API | `http://localhost:8080/v1` |
+
+`UD-IQ3_XXS` leaves substantially more room for context and GPU offload than a larger 4-bit quantization. The tradeoff is some model quality. On a 16GB card, that is usually preferable for agent work, where a useful context window and stable tool loop matter more than maximizing weight precision.
+
+## 1. Install and start llama.cpp
+
+Choose one of the following server paths. Do not start both at the same time because both use port 8080.
+
+### Path A: tuned repository launcher (recommended)
+
+Open PowerShell 7 in this repository and run:
+
+```powershell
+.\install_llama_cpp.ps1
+.\run_qwen3_8_optimized.ps1
+```
+
+The first launch downloads or resolves the recommended GGUF. Keep this terminal open while Pi is running.
+
+The current repository launcher binds to `0.0.0.0`, so Windows Firewall may make it reachable from the local network. For a strictly local coding setup, change its `--host` value to `127.0.0.1` or restrict access with the firewall.
+
+The default is text-only. This is best for coding because the vision projector consumes additional VRAM. Enable it only when image input is required:
+
+```powershell
+.\run_qwen3_8_optimized.ps1 -Vision
+```
+
+### Path B: official llama.app binary
+
+The official installer detects the available acceleration backend and installs the unified `llama` command:
+
+```powershell
+irm https://llama.app/install.ps1 | iex
+```
+
+Review downloaded scripts before piping them into PowerShell if required by your security policy. Then reproduce this repository's text-only 16GB profile:
+
+```powershell
+$env:LLAMA_SET_ROWS = '1'
+$env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"enable_thinking":true,"preserve_thinking":true,"reasoning_effort":"xhigh"}'
+
+llama serve `
+    --hf-repo unsloth/Qwen3.8-27B-GGUF `
+    --hf-file Qwen3.8-27B-UD-IQ3_XXS.gguf `
+    --no-mmproj `
+    --alias unsloth/Qwen3.8-27B-UD-IQ3_XXS `
+    --fit on `
+    --fit-target 256 `
+    --fit-ctx 65536 `
+    --jinja `
+    --flash-attn on `
+    -np 1 `
+    -b 1024 `
+    -ub 512 `
+    -ctk q8_0 `
+    -ctv q8_0 `
+    --temp 1.0 `
+    --top-p 0.95 `
+    --top-k 20 `
+    --min-p 0.0 `
+    --presence-penalty 0.0 `
+    --repeat-penalty 1.0 `
+    --reasoning-preserve `
+    --spec-type draft-mtp `
+    --host 127.0.0.1 `
+    --port 8080
+```
+
+Unlike a bare `llama serve`, this starts a tuned single-model server. A bare invocation starts llama.cpp's multi-model router and discovers models from its cache; see [Router mode](#router-mode-with-pis-built-in-integration) below.
+
+## 2. Verify the server
+
+In a second PowerShell terminal:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/health
+Invoke-RestMethod http://localhost:8080/v1/models | ConvertTo-Json -Depth 6
+```
+
+The health request should succeed and the models response should contain the Qwen alias. Wait for model loading to finish if the server is still downloading or allocating memory.
+
+## 3. Install Pi on Windows
+
+Pi needs Node.js and a Bash-compatible shell for its coding tools. Current Pi documentation recommends Git for Windows as the simplest Bash provider on Windows.
+
+1. Install [Node.js LTS](https://nodejs.org/) and [Git for Windows](https://git-scm.com/download/win).
+2. Open a new PowerShell terminal so `node`, `npm`, `git`, and `bash` can be rediscovered.
+3. Install Pi:
+
+```powershell
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+pi --version
+```
+
+Pi packages and extensions execute with the user's filesystem and process permissions. Review third-party extension source before installing it.
+
+## 4. Connect Pi through pi-llama
+
+Install Hugging Face's extension once:
+
+```powershell
+pi install git:github.com/huggingface/pi-llama
+```
+
+The extension defaults match this repository:
+
+- `LLAMA_BASE_URL=http://localhost:8080/v1`
+- `LLAMA_API_KEY=no-key`
+
+Start the llama.cpp server before launching Pi. Then change to the root of the codebase that Pi should edit:
+
+```powershell
+Set-Location C:\path\to\your\project
+pi
+```
+
+Inside Pi:
+
+1. Run `/model` or press `Ctrl+L`.
+2. Search for the `llama-cpp` provider.
+3. Select `unsloth/Qwen3.8-27B-UD-IQ3_XXS`.
+4. Use `/llama-version` to confirm which llama.cpp build the extension reached.
+
+`pi-llama` queries the running server for its model list, effective context window, chat template, and thinking support. No API key or manual `models.json` entry is needed for the local default endpoint.
+
+If Pi runs on another machine or the endpoint is different, set the variables before starting Pi:
+
+```powershell
+$env:LLAMA_BASE_URL = 'http://server-name:8080/v1'
+$env:LLAMA_API_KEY = 'no-key'
+pi
+```
+
+For a remote endpoint, protect the server with an API key and an appropriate firewall or reverse proxy. Do not expose an unauthenticated coding-model endpoint directly to the internet.
+
+## 5. Use Pi effectively with a 64K local context
+
+- Start Pi in the repository root. Pi automatically loads applicable `AGENTS.md` or `CLAUDE.md` files, so keep project commands and conventions there.
+- Give one concrete task at a time and name the relevant area of the codebase. A 27B local model is more reliable with bounded changes than with broad, underspecified rewrites.
+- Ask it to inspect before editing and to run the smallest relevant tests after editing.
+- Keep Git changes reviewable. Check `git diff` between larger tasks and create your own checkpoints before risky work.
+- Use `/compact` before the context is nearly full. Pi also compacts automatically, but manual compaction at a clean task boundary usually preserves intent better.
+- Start a fresh Pi session for unrelated work. Old tool output consumes context without helping the next task.
+- Leave vision disabled for ordinary coding. Enable it only for screenshots, diagrams, or UI inspection.
+
+The launcher's `--fit-ctx 65536` value is a minimum context floor for llama.cpp's fitter, not a guarantee that every layer remains on the GPU. Read the server startup log to see the effective context and offload selected for the current free VRAM.
+
+## Router mode with Pi's built-in integration
+
+Current Pi versions can manage llama.cpp's multi-model router without `pi-llama`. This is useful when convenience and model switching matter more than one precisely tuned model process.
+
+Start the current unified app without `--model`, `-m`, or `-hf`:
+
+```powershell
+llama serve --models-dir C:\path\to\gguf-models --no-models-autoload --jinja --host 127.0.0.1 --port 8080 -ngl 999 -c 32768
+```
+
+Then, inside Pi:
+
+```text
+/login llama.cpp
+/llama
+/model
+```
+
+`/llama` loads or unloads router models; only loaded models appear in `/model`. Per-model presets are the right place for advanced settings such as Qwen3.8's 64K fit, Q8 KV cache, and MTP. The tuned single-model launcher is simpler when Qwen3.8-27B is the only desired model.
+
+## Troubleshooting and tuning
+
+### `llama-cpp` does not appear in `/model`
+
+Start the server first, verify `/v1/models`, and restart Pi. Confirm that `LLAMA_BASE_URL` ends in `/v1` when using `pi-llama`.
+
+### Pi cannot run shell tools on Windows
+
+Install Git for Windows. Pi looks for Git Bash at `C:\Program Files\Git\bin\bash.exe`. A custom Bash path can be set as `shellPath` in `~/.pi/agent/settings.json`.
+
+### CUDA out-of-memory or unstable desktop
+
+Close GPU-heavy browsers, games, video tools, and other model servers before loading Qwen. If pressure remains:
+
+1. Increase `--fit-target` from `256` to `512` or `1024` MiB to reserve more headroom.
+2. Reduce `--fit-ctx` from `65536` to `32768`.
+3. Keep vision disabled.
+4. Reduce `-b` to `512` and `-ub` to `256` if prompt ingestion causes the failure.
+
+These changes favor stability over context size or prompt-processing speed.
+
+### Responses are slow
+
+Confirm from the server log that CUDA is active, Flash Attention is enabled, most model layers are offloaded, and MTP reports drafted-token acceptance. Generation speed also falls as the active context grows; compact or start a new session when old history is no longer useful.
+
+### Update the components
+
+```powershell
+# llama.app installation
+llama update
+
+# Pi and installed extensions
+pi update --all
+```
+
+For this repository's source build, rerun `install_llama_cpp.ps1` when you intentionally want to rebuild/update llama.cpp, then recheck the launcher's supported arguments.
+
+## Upstream references
+
+- [llama.app](https://llama.app/)
+- [Unified llama app announcement](https://github.com/ggml-org/llama.cpp/discussions/23875)
+- [llama.cpp server and router documentation](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+- [Hugging Face pi-llama extension](https://github.com/huggingface/pi-llama)
+- [Pi coding agent](https://pi.dev/)
+- [Pi llama.cpp router documentation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/llama-cpp.md)
+- [Pi Windows documentation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/windows.md)
