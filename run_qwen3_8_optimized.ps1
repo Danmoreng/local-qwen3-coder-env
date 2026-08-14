@@ -54,7 +54,8 @@ function Resolve-HfFile {
 
 $ModelArgs = @()
 $MmprojArgs = @()
-$FitTarget = '256'
+$FitArgs = @('--fit', 'off')
+$ContextArgs = @('-c', '65536')
 
 if ($LocalModel) {
     $ModelFile = Join-Path $ModelDir $ModelHfFile
@@ -65,7 +66,10 @@ if ($LocalModel) {
         $MmprojFile = Join-Path $ModelDir $MmprojFilename
         Download-File -Url $MmprojUrl -Destination $MmprojFile -Label 'vision projector'
         $MmprojArgs = @('--mmproj', $MmprojFile, '--mmproj-offload')
-        $FitTarget = '1536'
+        $FitArgs = @('--fit', 'on', '--fit-target', '1536', '--fit-ctx', '65536')
+        $ContextArgs = @()
+    } else {
+        $MmprojArgs = @('--no-mmproj')
     }
 } else {
     $CachedModel = Resolve-HfFile -Repo $ModelHfRepo -File $ModelHfFile
@@ -83,25 +87,21 @@ if ($LocalModel) {
         } else {
             $MmprojArgs = @('--mmproj-auto', '--mmproj-offload')
         }
-        $FitTarget = '1536'
+        $FitArgs = @('--fit', 'on', '--fit-target', '1536', '--fit-ctx', '65536')
+        $ContextArgs = @()
     } else {
         $MmprojArgs = @('--no-mmproj')
     }
 }
 
-$Env:LLAMA_SET_ROWS = '1'
-$Env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"enable_thinking":true,"preserve_thinking":true,"reasoning_effort":"xhigh"}'
-
 $Args = $ModelArgs
 $Args += $MmprojArgs
+$Args += $FitArgs
+$Args += $ContextArgs
 $Args += @(
     '--alias', $ModelAlias,
-    '--fit', 'on',
-    '--fit-target', $FitTarget,
-    '--jinja',
     '--flash-attn', 'on',
     '-np', '1',
-    '--fit-ctx', '65536',
     '-b', '1024',
     '-ub', '512',
     '-ctk', 'q8_0',
@@ -113,11 +113,16 @@ $Args += @(
     '--presence-penalty', '0.0',
     '--repeat-penalty', '1.0',
     '--reasoning-preserve',
+    '--spec-default',
     '--spec-type', 'draft-mtp',
     '--host', '0.0.0.0',
     '--port', '8080'
 )
 
 Write-Host "-> Starting optimized llama-server for $ModelName on http://localhost:8080"
-Write-Host "-> 64K context, Q8 KV cache, MTP speculative decoding, vision=$Vision"
+if ($Vision) {
+    Write-Host '-> Vision mode: dynamic GPU fitting, 64K context floor, Q8 KV cache, MTP speculative decoding'
+} else {
+    Write-Host '-> Text mode: fixed 64K context, full GPU placement, Q8 KV cache, MTP speculative decoding'
+}
 Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -Wait
