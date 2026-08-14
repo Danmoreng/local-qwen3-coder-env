@@ -12,7 +12,7 @@ The 16GB profile is intentionally text-first and single-user:
 | --- | --- |
 | Model | `unsloth/Qwen3.8-27B-GGUF` |
 | GGUF | `Qwen3.8-27B-UD-IQ3_XXS.gguf` (about 11.9 GB) |
-| Context floor | 65,536 tokens |
+| Context | Fixed 65,536 tokens |
 | KV cache | Q8 for keys and values |
 | Server slots | 1 |
 | Prompt batch / micro-batch | 1024 / 512 |
@@ -57,18 +57,13 @@ irm https://llama.app/install.ps1 | iex
 Review downloaded scripts before piping them into PowerShell if required by your security policy. Then reproduce this repository's text-only 16GB profile:
 
 ```powershell
-$env:LLAMA_SET_ROWS = '1'
-$env:LLAMA_CHAT_TEMPLATE_KWARGS = '{"enable_thinking":true,"preserve_thinking":true,"reasoning_effort":"xhigh"}'
-
 llama serve `
     --hf-repo unsloth/Qwen3.8-27B-GGUF `
     --hf-file Qwen3.8-27B-UD-IQ3_XXS.gguf `
     --no-mmproj `
     --alias unsloth/Qwen3.8-27B-UD-IQ3_XXS `
-    --fit on `
-    --fit-target 256 `
-    --fit-ctx 65536 `
-    --jinja `
+    --fit off `
+    -c 65536 `
     --flash-attn on `
     -np 1 `
     -b 1024 `
@@ -82,6 +77,7 @@ llama serve `
     --presence-penalty 0.0 `
     --repeat-penalty 1.0 `
     --reasoning-preserve `
+    --spec-default `
     --spec-type draft-mtp `
     --host 127.0.0.1 `
     --port 8080
@@ -164,7 +160,7 @@ For a remote endpoint, protect the server with an API key and an appropriate fir
 - Start a fresh Pi session for unrelated work. Old tool output consumes context without helping the next task.
 - Leave vision disabled for ordinary coding. Enable it only for screenshots, diagrams, or UI inspection.
 
-The launcher's `--fit-ctx 65536` value is a minimum context floor for llama.cpp's fitter, not a guarantee that every layer remains on the GPU. Read the server startup log to see the effective context and offload selected for the current free VRAM.
+The text launcher's `--fit off -c 65536` profile fixes the context and prevents llama.cpp's automatic fitter from conservatively changing GPU placement. On the tested RTX 5080 Laptop GPU, the server process used about 14.83 GB and left about 1.0 GB free. Close other GPU-heavy applications before starting it and check the startup log to confirm full offload on your system.
 
 ## Router mode with Pi's built-in integration
 
@@ -184,7 +180,7 @@ Then, inside Pi:
 /model
 ```
 
-`/llama` loads or unloads router models; only loaded models appear in `/model`. Per-model presets are the right place for advanced settings such as Qwen3.8's 64K fit, Q8 KV cache, and MTP. The tuned single-model launcher is simpler when Qwen3.8-27B is the only desired model.
+`/llama` loads or unloads router models; only loaded models appear in `/model`. Per-model presets are the right place for advanced settings such as Qwen3.8's fixed 64K context, Q8 KV cache, and MTP. The tuned single-model launcher is simpler when Qwen3.8-27B is the only desired model.
 
 ## Troubleshooting and tuning
 
@@ -200,8 +196,8 @@ Install Git for Windows. Pi looks for Git Bash at `C:\Program Files\Git\bin\bash
 
 Close GPU-heavy browsers, games, video tools, and other model servers before loading Qwen. If pressure remains:
 
-1. Increase `--fit-target` from `256` to `512` or `1024` MiB to reserve more headroom.
-2. Reduce `--fit-ctx` from `65536` to `32768`.
+1. Reduce the fixed context from `-c 65536` to `-c 32768`.
+2. If more headroom is still required, replace `--fit off -c 65536` with `--fit on --fit-target 512 --fit-ctx 32768` to allow automatic placement.
 3. Keep vision disabled.
 4. Reduce `-b` to `512` and `-ub` to `256` if prompt ingestion causes the failure.
 

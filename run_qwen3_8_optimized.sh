@@ -58,7 +58,8 @@ resolve_hf_file() {
 
 MODEL_ARGS=()
 MMPROJ_ARGS=()
-FIT_TARGET=256
+FIT_ARGS=(--fit off)
+CTX_ARGS=(-c 65536)
 
 if [[ "$LOCAL_MODEL" -eq 1 ]]; then
     MODEL_FILE="$MODEL_DIR/$MODEL_HF_FILE"
@@ -69,7 +70,10 @@ if [[ "$LOCAL_MODEL" -eq 1 ]]; then
         MMPROJ_FILE="$MODEL_DIR/$MMPROJ_FILENAME"
         [[ -f "$MMPROJ_FILE" ]] || download_file "$MMPROJ_URL" "$MMPROJ_FILE"
         MMPROJ_ARGS=(--mmproj "$MMPROJ_FILE" --mmproj-offload)
-        FIT_TARGET=1536
+        FIT_ARGS=(--fit on --fit-target 1536 --fit-ctx 65536)
+        CTX_ARGS=()
+    else
+        MMPROJ_ARGS=(--no-mmproj)
     fi
 else
     if command -v hf >/dev/null 2>&1; then
@@ -87,28 +91,28 @@ else
         else
             MMPROJ_ARGS=(--mmproj-auto --mmproj-offload)
         fi
-        FIT_TARGET=1536
+        FIT_ARGS=(--fit on --fit-target 1536 --fit-ctx 65536)
+        CTX_ARGS=()
     else
         MMPROJ_ARGS=(--no-mmproj)
     fi
 fi
 
-export LLAMA_SET_ROWS=1
-export LLAMA_CHAT_TEMPLATE_KWARGS='{"enable_thinking":true,"preserve_thinking":true,"reasoning_effort":"xhigh"}'
-
 echo "-> Starting optimized llama-server for $MODEL_NAME on http://localhost:8080"
-echo "-> 64K context, Q8 KV cache, MTP speculative decoding, mode: $([[ "$VISION" -eq 1 ]] && echo vision || echo text-only)"
+if [[ "$VISION" -eq 1 ]]; then
+    echo "-> Vision mode: dynamic GPU fitting, 64K context floor, Q8 KV cache, MTP speculative decoding"
+else
+    echo "-> Text mode: fixed 64K context, full GPU placement, Q8 KV cache, MTP speculative decoding"
+fi
 
 "$SERVER_EXE" \
     "${MODEL_ARGS[@]}" \
     "${MMPROJ_ARGS[@]}" \
     --alias "$MODEL_ALIAS" \
-    --fit on \
-    --fit-target "$FIT_TARGET" \
-    --jinja \
+    "${FIT_ARGS[@]}" \
+    "${CTX_ARGS[@]}" \
     --flash-attn on \
     -np 1 \
-    --fit-ctx 65536 \
     -b 1024 \
     -ub 512 \
     -ctk q8_0 \
@@ -120,6 +124,7 @@ echo "-> 64K context, Q8 KV cache, MTP speculative decoding, mode: $([[ "$VISION
     --presence-penalty 0.0 \
     --repeat-penalty 1.0 \
     --reasoning-preserve \
+    --spec-default \
     --spec-type draft-mtp \
     --host 0.0.0.0 \
     --port 8080
