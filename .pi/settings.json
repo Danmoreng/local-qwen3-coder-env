@@ -1,0 +1,5 @@
+{
+  "defaultProvider": "llama-cpp",
+  "defaultModel": "unsloth/Qwen3.8-27B-UD-IQ3_XXS",
+  "defaultThinkingLevel": "medium"
+}

@@ -11,13 +11,15 @@ The 16GB profile is intentionally text-first and single-user:
 | Component | Choice |
 | --- | --- |
 | Model | `unsloth/Qwen3.8-27B-GGUF` |
-| GGUF | `Qwen3.8-27B-UD-IQ3_XXS.gguf` (about 11.9 GB) |
-| Context | Fixed 65,536 tokens |
+| Hub revision | `27af057ecb382ddfea5d12837360a8980560e3ed` |
+| GGUF | `Qwen3.8-27B-UD-IQ3_XXS.gguf` (Unsloth Dynamic 3.0, about 10.9 GB) |
+| Context | Fixed 98,304 tokens; optional 81,920-token safe profile |
 | KV cache | Q8 for keys and values |
 | Server slots | 1 |
 | Prompt batch / micro-batch | 1024 / 512 |
 | Attention | Flash Attention |
 | Drafting | Integrated MTP (`draft-mtp`) |
+| Reasoning | Medium effort with an 8K hard budget, an action-oriented cutoff message, and history preserved |
 | Vision | Off unless explicitly needed |
 | Local API | `http://localhost:8080/v1` |
 
@@ -37,6 +39,8 @@ Open PowerShell 7 in this repository and run:
 ```
 
 The first launch downloads or resolves the recommended GGUF. Keep this terminal open while Pi is running.
+
+The default text profile uses the tested 96K context. If Windows, another application, or a different 16GB GPU needs more VRAM headroom, start the 80K fallback with `.\run_qwen3_8_optimized.ps1 -SafeContext`.
 
 The current repository launcher binds to `0.0.0.0`, so Windows Firewall may make it reachable from the local network. For a strictly local coding setup, change its `--host` value to `127.0.0.1` or restrict access with the firewall.
 
@@ -63,7 +67,7 @@ llama serve `
     --no-mmproj `
     --alias unsloth/Qwen3.8-27B-UD-IQ3_XXS `
     --fit off `
-    -c 65536 `
+    -c 98304 `
     --flash-attn on `
     -np 1 `
     -b 1024 `
@@ -76,6 +80,9 @@ llama serve `
     --min-p 0.0 `
     --presence-penalty 0.0 `
     --repeat-penalty 1.0 `
+    --reasoning-effort medium `
+    --reasoning-budget 8192 `
+    --reasoning-budget-message "... I have been thinking for too long -- let me gather more information about the task and take the next concrete action." `
     --reasoning-preserve `
     --spec-default `
     --spec-type draft-mtp `
@@ -124,6 +131,18 @@ The extension defaults match this repository:
 - `LLAMA_BASE_URL=http://localhost:8080/v1`
 - `LLAMA_API_KEY=no-key`
 
+This repository includes `.pi/settings.json`, which selects the discovered `llama-cpp` Qwen3.8 model and Pi's `medium` thinking level without changing your global Pi defaults. Start Pi from the repository root after the server is ready:
+
+```powershell
+pi
+```
+
+The first interactive launch may ask you to trust the repository before loading its project settings. For a one-off explicit launch that does not depend on project defaults, use:
+
+```powershell
+pi --provider llama-cpp --model unsloth/Qwen3.8-27B-UD-IQ3_XXS --thinking medium
+```
+
 Start the llama.cpp server before launching Pi. Then change to the root of the codebase that Pi should edit:
 
 ```powershell
@@ -138,7 +157,23 @@ Inside Pi:
 3. Select `unsloth/Qwen3.8-27B-UD-IQ3_XXS`.
 4. Use `/llama-version` to confirm which llama.cpp build the extension reached.
 
-`pi-llama` queries the running server for its model list, effective context window, chat template, and thinking support. No API key or manual `models.json` entry is needed for the local default endpoint.
+`pi-llama` queries the running server for its model list, effective context window, chat template, and thinking support. No API key is needed for the local default endpoint. The extension otherwise advertises a fixed 16K per-response output limit, so this setup uses the following user-level override in `~/.pi/agent/models.json` to allow up to 32K output tokens:
+
+```json
+{
+  "providers": {
+    "llama-cpp": {
+      "modelOverrides": {
+        "unsloth/Qwen3.8-27B-UD-IQ3_XXS": {
+          "maxTokens": 32768
+        }
+      }
+    }
+  }
+}
+```
+
+With the server-side 8K reasoning budget, a single model turn therefore retains up to roughly 24K tokens for tool calls and final output. The actual available output also depends on how much of the 96K context is already occupied by the conversation.
 
 If Pi runs on another machine or the endpoint is different, set the variables before starting Pi:
 
@@ -150,7 +185,7 @@ pi
 
 For a remote endpoint, protect the server with an API key and an appropriate firewall or reverse proxy. Do not expose an unauthenticated coding-model endpoint directly to the internet.
 
-## 5. Use Pi effectively with a 64K local context
+## 5. Use Pi effectively with a 96K local context
 
 - Start Pi in the repository root. Pi automatically loads applicable `AGENTS.md` or `CLAUDE.md` files, so keep project commands and conventions there.
 - Give one concrete task at a time and name the relevant area of the codebase. A 27B local model is more reliable with bounded changes than with broad, underspecified rewrites.
@@ -160,7 +195,7 @@ For a remote endpoint, protect the server with an API key and an appropriate fir
 - Start a fresh Pi session for unrelated work. Old tool output consumes context without helping the next task.
 - Leave vision disabled for ordinary coding. Enable it only for screenshots, diagrams, or UI inspection.
 
-The text launcher's `--fit off -c 65536` profile fixes the context and prevents llama.cpp's automatic fitter from conservatively changing GPU placement. On the tested RTX 5080 Laptop GPU, the server process used about 14.83 GB and left about 1.0 GB free. Close other GPU-heavy applications before starting it and check the startup log to confirm full offload on your system.
+The text launcher's `--fit off -c 98304` profile fixes the context and prevents llama.cpp's automatic fitter from conservatively changing GPU placement. With the current 10.9 GB Dynamic 3.0 GGUF on the tested RTX 5080 Laptop GPU, a 4,153-token prompt plus MTP generation left 358 MiB of total GPU memory free. This is the highest practical tested agent profile, but it assumes the GPU is otherwise mostly idle. Use `-SafeContext` for the 80K profile when Windows or other GPU applications need more headroom.
 
 ## Router mode with Pi's built-in integration
 
@@ -180,7 +215,7 @@ Then, inside Pi:
 /model
 ```
 
-`/llama` loads or unloads router models; only loaded models appear in `/model`. Per-model presets are the right place for advanced settings such as Qwen3.8's fixed 64K context, Q8 KV cache, and MTP. The tuned single-model launcher is simpler when Qwen3.8-27B is the only desired model.
+`/llama` loads or unloads router models; only loaded models appear in `/model`. Per-model presets are the right place for advanced settings such as Qwen3.8's fixed 96K context, Q8 KV cache, and MTP. The tuned single-model launcher is simpler when Qwen3.8-27B is the only desired model.
 
 ## Troubleshooting and tuning
 
@@ -196,8 +231,8 @@ Install Git for Windows. Pi looks for Git Bash at `C:\Program Files\Git\bin\bash
 
 Close GPU-heavy browsers, games, video tools, and other model servers before loading Qwen. If pressure remains:
 
-1. Reduce the fixed context from `-c 65536` to `-c 32768`.
-2. If more headroom is still required, replace `--fit off -c 65536` with `--fit on --fit-target 512 --fit-ctx 32768` to allow automatic placement.
+1. Start the optimized launcher with `-SafeContext` to reduce the fixed context from 96K to 80K.
+2. If more headroom is still required, reduce the context to `-c 65536` or replace the fixed profile with `--fit on --fit-target 512 --fit-ctx 32768` to allow automatic placement.
 3. Keep vision disabled.
 4. Reduce `-b` to `512` and `-ub` to `256` if prompt ingestion causes the failure.
 
