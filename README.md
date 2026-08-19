@@ -146,7 +146,7 @@ Connection settings:
 - Model: the selected model alias from `model_config.json`
 
 Examples:
-- **Pi Coding Agent**: Use the [`pi-llama`](https://github.com/huggingface/pi-llama) extension for automatic discovery of this repo's running single-model server. Follow the [16GB Windows guide](docs/qwen3.8-27b-pi-windows.md).
+- **Pi Coding Agent**: Use the [`pi-llama`](https://github.com/huggingface/pi-llama) extension for automatic discovery of this repo's running single-model server. This repository's `.pi/settings.json` selects the local Qwen3.8 model with medium reasoning by default. A user-level `~/.pi/agent/models.json` override raises Pi's per-response output limit from the extension's 16K default to 32K. Follow the [16GB Windows guide](docs/qwen3.8-27b-pi-windows.md).
 - **Qwen Code**: https://github.com/QwenLM/qwen-code
 
 Current Pi versions also include direct management for llama.cpp's multi-model router through `/login llama.cpp` and `/llama`. The `pi-llama` extension is the more direct match for this repo's tuned single-model launcher; the built-in integration is useful when `llama serve` is running without `--model`, `-m`, or `-hf`.
@@ -178,9 +178,9 @@ To use a custom model not listed in the presets:
 
 ## Runtime Defaults
 
-The launchers default to a single server slot with `-np 1`, which reduces recurrent-state overhead for single-user local coding setups. The dedicated Qwen3.8 text launchers use a fixed 64K context with `--fit off`, keeping the entire tested model placement on the GPU. Vision mode retains dynamic fitting with `--fit-target 1536`, because the BF16 projector requires additional VRAM.
+The launchers default to a single server slot with `-np 1`, which reduces recurrent-state overhead for single-user local coding setups. The dedicated Qwen3.8 text launchers use a fixed 96K context with `--fit off`, keeping the entire tested model placement on the GPU. Add `--safe-context` on Linux or `-SafeContext` on Windows for the previous 80K profile. Vision mode uses the 80K context floor with dynamic fitting and `--fit-target 1536`, because the BF16 projector requires additional VRAM.
 
-For Qwen3.8, thinking behavior and reasoning effort come from the model template or the individual API request. The launchers use `--reasoning-preserve` so reasoning traces remain available across the full conversation history without forcing a global `reasoning_effort` override.
+For Qwen3.8, the dedicated launchers default to `medium` reasoning, cap each thinking phase at 8,192 tokens, inject an action-oriented cutoff message when that budget is reached, and preserve reasoning traces across the conversation history. Individual API requests may still disable thinking when the client supports the model's chat-template control.
 
 ### Recommended Qwen3.8-27B profile
 
@@ -189,8 +189,9 @@ The dedicated `run_qwen3_8_optimized` launchers use the following profile on bot
 | Setting | Value |
 | --- | --- |
 | Model | [`unsloth/Qwen3.8-27B-GGUF`](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF) |
-| Quantization | `Qwen3.8-27B-UD-IQ3_XXS.gguf` (about 11.9 GB) |
-| Context | fixed `65536` tokens via `-c 65536` |
+| Hub revision | `27af057ecb382ddfea5d12837360a8980560e3ed` (pinned Dynamic 3.0 refresh) |
+| Quantization | `Qwen3.8-27B-UD-IQ3_XXS.gguf` (Unsloth Dynamic 3.0, about 10.9 GB) |
+| Context | fixed `98304` tokens via `-c 98304` |
 | GPU memory fitting | `--fit off` for text; vision uses `--fit on` with a `1536` MiB target |
 | Prompt batches | `-b 1024 -ub 512` |
 | KV cache | `-ctk q8_0 -ctv q8_0` |
@@ -198,11 +199,11 @@ The dedicated `run_qwen3_8_optimized` launchers use the following profile on bot
 | Attention | `--flash-attn on` |
 | Sampling | temperature `1.0`, top-p `0.95`, top-k `20`, min-p `0.0` |
 | Penalties | presence `0.0`, repetition `1.0` |
-| Thinking | model/request default, with history preserved |
+| Thinking | `medium` reasoning effort with an 8K hard budget, an action-oriented cutoff message, and history preserved |
 | Speculative decoding | integrated MTP via `--spec-default --spec-type draft-mtp` |
 | API endpoint | `http://localhost:8080/v1` |
 
-The 64K text profile is the tested full-GPU sweet spot for a 16GB RTX 5080 Laptop GPU, not the model's architectural maximum. In one sustained generation run it occupied about 14.83 GB for the server process and left about 1.0 GB free, while reaching roughly 60 tokens/s; workload and MTP acceptance can change throughput. Vision is opt-in and uses dynamic fitting because its BF16 projector requires additional VRAM.
+The 96K text profile is the highest practical agent profile found for the current Dynamic 3.0 GGUF on the tested 16GB RTX 5080 Laptop GPU, not the model's architectural maximum. It completed a 4,153-token prompt plus MTP generation at about 76 tokens/s and left 358 MiB of total GPU memory free after CUDA graph allocation. A 100K profile also completed the test but left only 182 MiB free; 104K fell to 36 MiB, and 108K crashed on the first request with a CUDA out-of-memory error. Keep other GPU-heavy applications closed at 96K, or use the 80K safe-context option for substantially more headroom. Vision is opt-in and retains the 80K dynamic-fitting profile because its BF16 projector requires additional VRAM.
 
 ---
 
@@ -239,7 +240,7 @@ llama-server \
     --no-mmproj \
     --alias <alias_name> \
     --fit off \
-    -c 65536 \
+    -c 98304 \
     --flash-attn on \
     -np 1 \
     -b 1024 \
@@ -250,6 +251,9 @@ llama-server \
     --top-p 0.95 \
     --top-k 20 \
     --min-p 0.0 \
+    --reasoning-effort medium \
+    --reasoning-budget 8192 \
+    --reasoning-budget-message "... I have been thinking for too long -- let me gather more information about the task and take the next concrete action." \
     --reasoning-preserve \
     --spec-default \
     --spec-type draft-mtp
@@ -263,7 +267,7 @@ llama-server \
 | **Single Server Slot** | Lower recurrent-state overhead | `-np 1` configures the server for a single local user session. |
 | **No `mmap`** | More stable host/GPU balance | Enabled in the Windows launcher for large text-model loads. |
 | **Larger UBatch** | Higher prompt throughput | `-ub 512` increases prompt-processing throughput in the Windows launcher. |
-| **Fixed Text Placement** | Predictable full-GPU performance | The dedicated Qwen3.8 text profile uses `--fit off -c 65536`; vision and general launchers retain dynamic fitting where needed. |
+| **Fixed Text Placement** | Predictable full-GPU performance | The dedicated Qwen3.8 text profile uses `--fit off -c 98304`; `--safe-context`/`-SafeContext` selects 80K, while vision retains dynamic fitting. |
 | **MTP Drafting** | Faster Qwen3.8 generation | Uses the model's integrated next-token prediction layer and reports draft acceptance in the server timing log. |
 | **Dynamic Sampling** | Model-specific defaults | Applies the recommended thinking-mode defaults for Qwen3.8 and compatible settings for the remaining presets. |
 | **MoE Support** | Better large-model handling | Uses launcher defaults that work well with Qwen Mixture-of-Experts models. |
