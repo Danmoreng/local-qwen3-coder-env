@@ -133,4 +133,7 @@ if ($Vision) {
 } else {
     Write-Host "-> Text mode: fixed ${ContextK}K context, full GPU placement, Q8 KV cache, MTP speculative decoding"
 }
-Start-Process -FilePath $ServerExe -ArgumentList $Args -NoNewWindow -Wait
+& $ServerExe @Args
+if ($LASTEXITCODE -ne 0) {
+    throw "llama-server exited with code $LASTEXITCODE."
+}
