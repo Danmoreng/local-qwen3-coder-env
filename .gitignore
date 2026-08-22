@@ -7,6 +7,9 @@
 # Ignore log files
 /llama.log
 
+# Ignore local benchmark runs and generated artifacts
+/benchmarks/
+
 # Ignore IDE and editor-specific files
 .idea/
 .vscode/

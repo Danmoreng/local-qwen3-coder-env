@@ -20,7 +20,7 @@ The 16GB profile is intentionally text-first and single-user:
 | Attention | Flash Attention |
 | Drafting | Integrated MTP (`draft-mtp`) |
 | Reasoning | Medium effort with an 8K hard budget, an action-oriented cutoff message, and history preserved |
-| Vision | Off unless explicitly needed |
+| Vision | Opt-in; projector runs on CPU/RAM by default |
 | Local API | `http://localhost:8080/v1` |
 
 `UD-IQ3_XXS` leaves substantially more room for context and GPU offload than a larger 4-bit quantization. The tradeoff is some model quality. On a 16GB card, that is usually preferable for agent work, where a useful context window and stable tool loop matter more than maximizing weight precision.
@@ -44,10 +44,16 @@ The default text profile uses the tested 96K context. If Windows, another applic
 
 The current repository launcher binds to `0.0.0.0`, so Windows Firewall may make it reachable from the local network. For a strictly local coding setup, change its `--host` value to `127.0.0.1` or restrict access with the firewall.
 
-The default is text-only. This is best for coding because the vision projector consumes additional VRAM. Enable it only when image input is required:
+The default is text-only. Enable vision when Pi needs to inspect screenshots, diagrams, or other images:
 
 ```powershell
 .\run_qwen3_8_optimized.ps1 -Vision
+```
+
+This Windows profile fixes the context at 81,920 tokens and passes `--no-mmproj-offload --mmproj-device none`, keeping the approximately 0.93 GB BF16 projector in system RAM and executing it on the CPU. The quantized language model remains on the GPU, and its context still includes the image tokens. If image-encoding speed matters more than VRAM headroom, opt into GPU projector offload and dynamic fitting:
+
+```powershell
+.\run_qwen3_8_optimized.ps1 -Vision -VisionGpu
 ```
 
 ### Path B: official llama.app binary
@@ -157,7 +163,7 @@ Inside Pi:
 3. Select `unsloth/Qwen3.8-27B-UD-IQ3_XXS`.
 4. Use `/llama-version` to confirm which llama.cpp build the extension reached.
 
-`pi-llama` queries the running server for its model list, effective context window, chat template, and thinking support. No API key is needed for the local default endpoint. The extension otherwise advertises a fixed 16K per-response output limit, so this setup uses the following user-level override in `~/.pi/agent/models.json` to allow up to 32K output tokens:
+`pi-llama` queries the running server for its model list, effective context window, chat template, and thinking support. No API key is needed for the local default endpoint. Current single-model llama.cpp responses advertise the multimodal capability without the `architecture.input_modalities` field that `pi-llama` reads, and the extension otherwise advertises a fixed 16K per-response output limit. Use the following user-level override in `~/.pi/agent/models.json` to expose image attachments to Pi and allow up to 32K output tokens:
 
 ```json
 {
@@ -165,6 +171,7 @@ Inside Pi:
     "llama-cpp": {
       "modelOverrides": {
         "unsloth/Qwen3.8-27B-UD-IQ3_XXS": {
+          "input": ["text", "image"],
           "maxTokens": 32768
         }
       }
@@ -173,7 +180,7 @@ Inside Pi:
 }
 ```
 
-With the server-side 8K reasoning budget, a single model turn therefore retains up to roughly 24K tokens for tool calls and final output. The actual available output also depends on how much of the 96K context is already occupied by the conversation.
+With the server-side 8K reasoning budget, a single model turn therefore retains up to roughly 24K tokens for tool calls and final output. The actual available output also depends on how much of the active 96K text or 80K vision context is already occupied by the conversation. Attach an image on the command line with `pi @screenshot.png "Inspect this UI"`, drag it into Pi, or paste it in the interactive terminal.
 
 If Pi runs on another machine or the endpoint is different, set the variables before starting Pi:
 
@@ -193,7 +200,7 @@ For a remote endpoint, protect the server with an API key and an appropriate fir
 - Keep Git changes reviewable. Check `git diff` between larger tasks and create your own checkpoints before risky work.
 - Use `/compact` before the context is nearly full. Pi also compacts automatically, but manual compaction at a clean task boundary usually preserves intent better.
 - Start a fresh Pi session for unrelated work. Old tool output consumes context without helping the next task.
-- Leave vision disabled for ordinary coding. Enable it only for screenshots, diagrams, or UI inspection.
+- Leave vision disabled for ordinary coding. Enable CPU/RAM vision for screenshots, diagrams, or UI inspection; use `-VisionGpu` only when the additional VRAM use is acceptable.
 
 The text launcher's `--fit off -c 98304` profile fixes the context and prevents llama.cpp's automatic fitter from conservatively changing GPU placement. With the current 10.9 GB Dynamic 3.0 GGUF on the tested RTX 5080 Laptop GPU, a 4,153-token prompt plus MTP generation left 358 MiB of total GPU memory free. This is the highest practical tested agent profile, but it assumes the GPU is otherwise mostly idle. Use `-SafeContext` for the 80K profile when Windows or other GPU applications need more headroom.
 
@@ -233,7 +240,7 @@ Close GPU-heavy browsers, games, video tools, and other model servers before loa
 
 1. Start the optimized launcher with `-SafeContext` to reduce the fixed context from 96K to 80K.
 2. If more headroom is still required, reduce the context to `-c 65536` or replace the fixed profile with `--fit on --fit-target 512 --fit-ctx 32768` to allow automatic placement.
-3. Keep vision disabled.
+3. Keep vision disabled, or use the default CPU/RAM projector mode rather than `-VisionGpu`.
 4. Reduce `-b` to `512` and `-ub` to `256` if prompt ingestion causes the failure.
 
 These changes favor stability over context size or prompt-processing speed.
