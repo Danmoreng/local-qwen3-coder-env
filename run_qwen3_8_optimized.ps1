@@ -2,6 +2,7 @@
 
 param(
     [switch]$Vision,
+    [switch]$VisionGpu,
     [switch]$LocalModel,
     [switch]$SafeContext
 )
@@ -21,6 +22,10 @@ $MmprojFilename = 'mmproj-Qwen3.8-27B.gguf'
 $MmprojUrl = "https://huggingface.co/$ModelHfRepo/resolve/$ModelHfRevision/mmproj-BF16.gguf"
 $ContextSize = if ($SafeContext -or $Vision) { 81920 } else { 98304 }
 $ContextK = [int]($ContextSize / 1024)
+
+if ($VisionGpu -and -not $Vision) {
+    throw "-VisionGpu requires -Vision."
+}
 
 if (-not (Test-Path $ServerExe)) {
     throw "llama-server.exe not found at '$ServerExe' - run install_llama_cpp.ps1 first."
@@ -61,6 +66,11 @@ $ModelArgs = @()
 $MmprojArgs = @()
 $FitArgs = @('--fit', 'off')
 $ContextArgs = @('-c', [string]$ContextSize)
+$MmprojBackendArgs = if ($VisionGpu) {
+    @('--mmproj-offload')
+} else {
+    @('--no-mmproj-offload', '--mmproj-device', 'none')
+}
 
 if ($LocalModel) {
     $ModelFile = Join-Path $ModelDir $ModelLocalFile
@@ -70,9 +80,11 @@ if ($LocalModel) {
     if ($Vision) {
         $MmprojFile = Join-Path $ModelDir $MmprojFilename
         Download-File -Url $MmprojUrl -Destination $MmprojFile -Label 'vision projector'
-        $MmprojArgs = @('--mmproj', $MmprojFile, '--mmproj-offload')
-        $FitArgs = @('--fit', 'on', '--fit-target', '1536', '--fit-ctx', [string]$ContextSize)
-        $ContextArgs = @()
+        $MmprojArgs = @('--mmproj', $MmprojFile) + $MmprojBackendArgs
+        if ($VisionGpu) {
+            $FitArgs = @('--fit', 'on', '--fit-target', '1536', '--fit-ctx', [string]$ContextSize)
+            $ContextArgs = @()
+        }
     } else {
         $MmprojArgs = @('--no-mmproj')
     }
@@ -88,12 +100,14 @@ if ($LocalModel) {
     if ($Vision) {
         $CachedMmproj = Resolve-HfFile -Repo $ModelHfRepo -File 'mmproj-BF16.gguf' -Revision $ModelHfRevision
         if ($null -ne $CachedMmproj) {
-            $MmprojArgs = @('--mmproj', $CachedMmproj, '--mmproj-offload')
+            $MmprojArgs = @('--mmproj', $CachedMmproj) + $MmprojBackendArgs
         } else {
-            $MmprojArgs = @('--mmproj-auto', '--mmproj-offload')
+            $MmprojArgs = @('--mmproj-auto') + $MmprojBackendArgs
         }
-        $FitArgs = @('--fit', 'on', '--fit-target', '1536', '--fit-ctx', [string]$ContextSize)
-        $ContextArgs = @()
+        if ($VisionGpu) {
+            $FitArgs = @('--fit', 'on', '--fit-target', '1536', '--fit-ctx', [string]$ContextSize)
+            $ContextArgs = @()
+        }
     } else {
         $MmprojArgs = @('--no-mmproj')
     }
@@ -129,7 +143,11 @@ $Args += @(
 
 Write-Host "-> Starting optimized llama-server for $ModelName on http://localhost:8080"
 if ($Vision) {
-    Write-Host "-> Vision mode: dynamic GPU fitting, ${ContextK}K context floor, Q8 KV cache, MTP speculative decoding"
+    if ($VisionGpu) {
+        Write-Host "-> Vision mode: GPU projector, dynamic GPU fitting, ${ContextK}K context floor, Q8 KV cache, MTP speculative decoding"
+    } else {
+        Write-Host "-> Vision mode: CPU projector in system RAM, fixed ${ContextK}K context, text model on GPU, Q8 KV cache, MTP speculative decoding"
+    }
 } else {
     Write-Host "-> Text mode: fixed ${ContextK}K context, full GPU placement, Q8 KV cache, MTP speculative decoding"
 }
