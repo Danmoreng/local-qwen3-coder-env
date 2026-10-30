@@ -11,7 +11,7 @@ param(
 )
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ServerExe  = Join-Path $ScriptRoot 'vendor\llama.cpp\build\bin\llama-server.exe'
+$ServerExe  = Join-Path $(if ($env:LLAMA_CPP_HOME) { $env:LLAMA_CPP_HOME } else { 'C:/llama.cpp' }) 'build/bin/llama-server.exe'
 $ConfigFile = Join-Path $ScriptRoot "model_config.json"
 $ModelDir   = Join-Path $ScriptRoot 'models'
 
