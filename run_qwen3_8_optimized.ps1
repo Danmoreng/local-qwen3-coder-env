@@ -8,7 +8,7 @@ param(
 )
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ServerExe = Join-Path $(if ($env:LLAMA_CPP_HOME) { $env:LLAMA_CPP_HOME } else { 'C:/llama.cpp' }) 'build/bin/llama-server.exe'
+$ServerExe = Join-Path $ScriptRoot 'vendor\llama.cpp\build\bin\llama-server.exe'
 $ModelDir = Join-Path $ScriptRoot 'models'
 
 $ModelName = 'Qwen3.8-27B (Dense) - UD-IQ3_XXS'

@@ -15,13 +15,6 @@ param(
     [switch]$SkipBuild
 )
 
-$sharedRoot = if ($env:LLAMA_CPP_HOME) { $env:LLAMA_CPP_HOME } else { 'C:/llama.cpp' }
-$sharedUpdater = Join-Path $sharedRoot 'update-central.ps1'
-if (-not $SkipBuild -and (Test-Path -LiteralPath $sharedUpdater)) {
-    & $sharedUpdater
-    return
-}
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
